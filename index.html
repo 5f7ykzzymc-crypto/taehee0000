@@ -6,6 +6,7 @@
     <title>여백 — 이야기가 시작되는 곳</title>
     <link rel="stylesheet" href="style.css" />
     <script src="proofread.js" defer></script>
+    <script src="spell-engine.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -160,7 +161,7 @@
           </div>
           <div class="writing-actions">
             <button id="proofread" class="subtle-button">
-              <span data-icon="checkText"></span>오타 검수·수정</button
+              <span data-icon="checkText"></span>맞춤법 검사·수정</button
             ><span>현재 장면 검수</span>
           </div>
           <textarea
@@ -361,20 +362,33 @@
       <div class="dialog-heading">
         <div>
           <div class="eyebrow">WRITING REVIEW</div>
-          <h2 id="reviewTitle">오타 검수·수정</h2>
+          <h2 id="reviewTitle">맞춤법 검사·수정</h2>
         </div>
         <button id="closeReview" class="icon-button" aria-label="검수 창 닫기">
           <span data-icon="close"></span>
         </button>
       </div>
       <p class="dialog-description">
-        현재 장면의 자주 틀리는 표현을 확인합니다. 고유명사와 대사 표현을 살펴본
-        뒤 수정해 주세요.
+        한국어 사전으로 현재 장면의 단어와 활용형을 검사합니다. 고유명사와 대사
+        표현을 살펴본 뒤 수정해 주세요.
       </p>
       <div class="review-notice">
-        오프라인 기본 검수입니다. 모든 맞춤법·띄어쓰기를 판단하지 않으며, 원고를
-        외부로 전송하지 않습니다.
+        Hunspell 한국어 사전을 기기 안에서 실행합니다. 원고를 외부로 보내지
+        않습니다. 문맥에 따른 문법·띄어쓰기는 모두 판별하지 못하며, 고유명사와
+        대사는 직접 확인해 주세요.
       </div>
+      <div
+        id="reviewProgress"
+        class="review-progress"
+        role="status"
+        hidden
+      ></div>
+      <div id="reviewError" class="review-error" role="alert" hidden></div>
+      <details class="personal-dictionary">
+        <summary id="dictionarySummary">나만의 사전</summary>
+        <p>등록한 단어와 캐릭터 시트의 이름은 검사에서 제외합니다.</p>
+        <div id="dictionaryWords"></div>
+      </details>
       <div id="reviewResults"></div>
       <div class="review-footer">
         <span id="reviewSummary" role="status"></span

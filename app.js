@@ -164,6 +164,14 @@ function normalizeProject(data) {
   const ids = new Set();
   return {
     version: 2,
+    dictionary: Array.isArray(data.dictionary)
+      ? data.dictionary
+          .filter(
+            (word) =>
+              typeof word === "string" && word.length > 0 && word.length <= 100,
+          )
+          .slice(0, 2000)
+      : [],
     episodes: normalizeEpisodes(data.episodes),
     characters: data.characters.map((character) => {
       if (!character || fields.some((f) => typeof character[f] !== "string"))
@@ -184,6 +192,7 @@ let project = {
   version: 2,
   episodes: normalizeEpisodes(initial),
   characters: [],
+  dictionary: [],
 };
 let loadProblem = "",
   unreadableRaw = null;
@@ -989,27 +998,136 @@ document.addEventListener("paste", (event) => {
 $("proofread").onclick = () => {
   review = {
     target: currentScene(),
-    original: currentScene().text,
     lastApplied: null,
+    issues: [],
+    ignored: new Set(),
+    controller: null,
+    loading: false,
+    error: "",
+    checked: 0,
   };
-  renderReview();
   $("proofreadDialog").showModal();
+  void runReview();
 };
 $("closeReview").onclick = () => $("proofreadDialog").close();
-$("proofreadDialog").addEventListener("close", () => (review = null));
+$("proofreadDialog").addEventListener("close", () => {
+  review?.controller?.abort();
+  review = null;
+});
+function combineIssues(text, result) {
+  const wordRanges = [...text.matchAll(/[가-힣ᄀ-ᇿㄱ-ㆎ]+/gu)];
+  const local = window.YeobaekProofread?.findIssues(text) || [];
+  const map = new Map(
+    result.issues.map((issue) => [issue.start, { ...issue }]),
+  );
+  const groups = new Map();
+  for (const issue of local) {
+    const token = wordRanges.find(
+      (word) =>
+        word.index <= issue.start && word.index + word[0].length >= issue.end,
+    );
+    const start = token?.index ?? issue.start,
+      end = token ? start + token[0].length : issue.end;
+    if (
+      result.allowedRanges?.some(
+        (range) => range.start <= start && range.end >= end,
+      )
+    )
+      continue;
+    if (!groups.has(start))
+      groups.set(start, {
+        start,
+        end,
+        original: text.slice(start, end),
+        rules: [],
+      });
+    groups.get(start).rules.push(issue);
+  }
+  for (const [start, group] of groups) {
+    let replacement = group.original;
+    for (const rule of group.rules.sort((a, b) => b.start - a.start))
+      replacement =
+        replacement.slice(0, rule.start - start) +
+        rule.replacement +
+        replacement.slice(rule.end - start);
+    const existing = map.get(start);
+    map.set(start, {
+      ...group,
+      replacement,
+      suggestions: [
+        ...new Set([replacement, ...(existing?.suggestions || [])]),
+      ],
+      reason: group.rules.map((rule) => rule.reason).join(" "),
+    });
+  }
+  return [...map.values()].sort((a, b) => a.start - b.start);
+}
+async function runReview() {
+  const active = review;
+  if (!active) return;
+  active.controller?.abort();
+  active.controller = new AbortController();
+  active.loading = true;
+  active.error = "";
+  active.issues = [];
+  active.progress = "한국어 사전과 검사 엔진을 준비하고 있습니다…";
+  renderReview();
+  const snapshot = active.target.text;
+  try {
+    if (!window.YeobaekSpellEngine)
+      throw new Error(
+        "검사 파일을 불러오지 못했습니다. 새 ZIP의 spell-engine.js와 vendor 폴더를 함께 복사해 주세요.",
+      );
+    const result = await window.YeobaekSpellEngine.check(snapshot, {
+      signal: active.controller.signal,
+      words: [
+        ...project.dictionary,
+        ...project.characters
+          .map((character) => character.name.trim())
+          .filter(Boolean),
+        ...active.ignored,
+      ],
+      onProgress: ({ checked, total }) => {
+        if (review !== active) return;
+        active.progress = total
+          ? `한국어 ${checked.toLocaleString()} / ${total.toLocaleString()}어절 검사 중…`
+          : "검사 결과를 정리하고 있습니다…";
+        $("reviewProgress").textContent = active.progress;
+      },
+    });
+    if (review !== active) return;
+    if (active.target.text !== snapshot)
+      throw new Error("원고가 변경되었습니다. 다시 검사해 주세요.");
+    active.issues = combineIssues(snapshot, result);
+    active.checked = result.checked;
+  } catch (error) {
+    if (review !== active || error.name === "AbortError") return;
+    active.error =
+      error.message || "검사를 완료하지 못했습니다. 다시 시도해 주세요.";
+  } finally {
+    if (review === active) {
+      active.loading = false;
+      renderReview();
+    }
+  }
+}
 function applyCorrections(issues) {
-  if (!review) return;
+  if (!review || review.loading) return;
   const before = review.target.text;
   if (
     issues.some(
       (issue) => before.slice(issue.start, issue.end) !== issue.original,
     )
   ) {
-    renderReview();
-    return toast("원고가 변경되어 검수 결과를 갱신했습니다.");
+    void runReview();
+    return toast("원고가 변경되어 검사를 다시 시작합니다.");
   }
+  const valid = issues.filter(
+    (issue) => issue.replacement && issue.replacement !== issue.original,
+  );
+  if (!valid.length) return;
   let after = before;
-  [...issues]
+  [...valid]
     .sort((a, b) => b.start - a.start)
     .forEach(
       (issue) =>
@@ -1024,52 +1142,135 @@ function applyCorrections(issues) {
   $("editor").value = after;
   counts();
   renderScenes();
-  renderReview();
+  void runReview();
+}
+function renderDictionary() {
+  $("dictionarySummary").textContent =
+    `나만의 사전 (${project.dictionary.length})`;
+  $("dictionaryWords").replaceChildren();
+  for (const word of project.dictionary) {
+    const tag = element("span", "dictionary-tag", word);
+    const remove = element("button", "", "×");
+    remove.setAttribute("aria-label", word + " 사전에서 삭제");
+    remove.disabled = !!review?.loading;
+    remove.onclick = () => {
+      project.dictionary = project.dictionary.filter((value) => value !== word);
+      persist();
+      void runReview();
+    };
+    tag.append(remove);
+    $("dictionaryWords").append(tag);
+  }
+  if (!project.dictionary.length)
+    $("dictionaryWords").append(
+      element(
+        "span",
+        "dictionary-empty",
+        "검사 결과에서 ‘사전에 추가’를 누르면 이곳에 보관됩니다.",
+      ),
+    );
 }
 function renderReview() {
+  if (!review) return;
   const container = $("reviewResults");
   container.replaceChildren();
-  const issues = window.YeobaekProofread.findIssues(review.target.text);
-  issues.forEach((issue) => {
-    const row = element("div", "review-row");
-    const change = element("div", "review-change");
-    const apply = element("button", "", "수정");
+  $("reviewProgress").hidden = !review.loading;
+  $("reviewProgress").textContent = review.progress || "";
+  $("reviewError").hidden = !review.error;
+  $("reviewError").textContent = review.error;
+  renderDictionary();
+  const issues = review.issues;
+  issues.forEach((issue, index) => {
+    const row = element("div", "review-row"),
+      change = element("div", "review-change");
+    const apply = element("button", "apply-one", "수정");
+    const replacement = element(
+      issue.suggestions.length ? "select" : "input",
+      "replacement-input",
+    );
+    replacement.setAttribute("aria-label", issue.original + " 수정안");
+    if (issue.suggestions.length)
+      issue.suggestions.forEach((value) => {
+        const option = element("option", "", value);
+        option.value = value;
+        replacement.append(option);
+      });
+    else replacement.placeholder = "수정안 직접 입력";
+    replacement.value = issue.replacement;
+    replacement.oninput = () => {
+      issue.replacement = replacement.value;
+      apply.disabled =
+        !issue.replacement || issue.replacement === issue.original;
+      updateApplyAll();
+    };
+    apply.disabled = !issue.replacement || issue.replacement === issue.original;
     apply.onclick = () => applyCorrections([issue]);
     change.append(
       element("del", "", issue.original),
       element("span", "", "→"),
-      element("strong", "", issue.replacement),
+      replacement,
       apply,
     );
     const context = review.target.text.slice(
       Math.max(0, issue.start - 22),
       Math.min(review.target.text.length, issue.end + 22),
     );
+    const actions = element("div", "review-word-actions");
+    const ignore = element("button", "", "이번만 넘기기");
+    ignore.onclick = () => {
+      review.ignored.add(issue.original);
+      void runReview();
+    };
+    const remember = element("button", "", "사전에 추가");
+    remember.onclick = () => {
+      if (issue.original.length > 100)
+        return toast("나만의 사전에는 100자 이하의 단어를 등록할 수 있습니다.");
+      if (project.dictionary.length >= 2000)
+        return toast("나만의 사전은 최대 2,000개까지 등록할 수 있습니다.");
+      if (!project.dictionary.includes(issue.original))
+        project.dictionary.push(issue.original);
+      persist();
+      void runReview();
+    };
+    actions.append(ignore, remember);
     row.append(
       change,
       element("p", "review-context", context),
       element("small", "", issue.reason),
+      actions,
     );
     container.append(row);
   });
-  if (!issues.length) {
+  if (!issues.length && !review.loading && !review.error) {
     const empty = element("div", "review-empty");
     empty.append(
       element(
         "h3",
         "",
-        review.lastApplied
-          ? "수정한 내용을 반영했습니다."
-          : "기본 검수에서 발견한 오타가 없습니다.",
+        review.checked
+          ? "사전 기반 검사에서 수정 제안이 없습니다."
+          : "검사할 한국어 원고를 입력해 주세요.",
       ),
-      element("p", "", "고유명사와 문맥, 띄어쓰기는 한 번 더 읽어보세요."),
+      element(
+        "p",
+        "",
+        "문맥에 따른 문법과 띄어쓰기는 직접 한 번 더 확인해 주세요.",
+      ),
     );
     container.append(empty);
   }
   $("reviewSummary").replaceChildren(
-    element("span", "", issues.length + "개의 수정 제안"),
+    element(
+      "span",
+      "",
+      review.loading
+        ? "검사 중 · 창을 닫으면 취소됩니다."
+        : review.error
+          ? "검사를 완료하지 못했습니다."
+          : `${review.checked}어절 검사 · ${issues.length}개의 확인 항목`,
+    ),
   );
-  if (review.lastApplied) {
+  if (review.lastApplied && !review.loading) {
     const undo = element("button", "undo-button", "마지막 수정 되돌리기");
     undo.onclick = () => {
       if (review.target.text !== review.lastApplied.after)
@@ -1080,16 +1281,32 @@ function renderReview() {
       $("editor").value = review.target.text;
       counts();
       renderScenes();
-      renderReview();
+      void runReview();
     };
     $("reviewSummary").append(document.createTextNode(" · "), undo);
   }
-  $("applyAll").disabled = !issues.length;
-  $("applyAll").textContent = issues.length
-    ? "모두 수정 (" + issues.length + ")"
-    : "검수 완료";
-  $("applyAll").onclick = () => applyCorrections(issues);
+  updateApplyAll();
 }
+function updateApplyAll() {
+  const button = $("applyAll");
+  if (review.error) {
+    button.disabled = false;
+    button.textContent = "다시 검사";
+    button.onclick = () => void runReview();
+    return;
+  }
+  const valid = review.issues.filter(
+    (issue) => issue.replacement && issue.replacement !== issue.original,
+  );
+  button.disabled = review.loading || !valid.length;
+  button.textContent = review.loading
+    ? "검사 중…"
+    : valid.length
+      ? `선택한 제안 모두 수정 (${valid.length})`
+      : "검사 완료";
+  button.onclick = () => applyCorrections(valid);
+}
+
 render();
 if (loadProblem) {
   hasStorageError = true;
