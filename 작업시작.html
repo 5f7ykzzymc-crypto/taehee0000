@@ -7,11 +7,20 @@
     <link rel="stylesheet" href="style.css" />
     <script src="proofread.js" defer></script>
     <script src="spell-engine.js" defer></script>
+    <script src="typewriter.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
     <aside class="library" id="library" aria-label="작업 공간">
-      <div class="brand">여백<span>STORY STUDIO</span></div>
+      <button
+        class="brand"
+        id="renameWorkspace"
+        title="작업실 이름 변경"
+        aria-label="작업실 이름 변경"
+      >
+        <strong id="workspaceName">여백</strong><span>STORY STUDIO</span
+        ><span class="brand-edit" data-icon="pen"></span>
+      </button>
       <div class="project">
         <span class="project-icon" data-icon="book"></span>
         <div>여름의 끝에서<small>나의 이야기 작업실</small></div>
@@ -113,6 +122,14 @@
             <span data-icon="moon"></span>
           </button>
           <button
+            id="typewriter"
+            title="타자기 모드 · 입력 줄을 화면 중앙에 고정"
+            aria-pressed="false"
+          >
+            <span data-icon="typewriter"></span
+            ><span class="tool-label">타자기 모드</span>
+          </button>
+          <button
             id="focus"
             title="집중 모드 (Esc로 종료)"
             aria-pressed="false"
@@ -120,7 +137,7 @@
             <span data-icon="focus"></span
             ><span class="tool-label">집중 모드</span>
           </button>
-          <button id="export">
+          <button id="export" aria-label="내보내기" title="내보내기">
             <span data-icon="export"></span><span>내보내기</span>
           </button>
         </div>
@@ -164,12 +181,22 @@
               <span data-icon="checkText"></span>맞춤법 검사·수정</button
             ><span>현재 장면 검수</span>
           </div>
+          <div
+            id="typewriterBefore"
+            class="typewriter-space"
+            aria-hidden="true"
+          ></div>
           <textarea
             id="editor"
             aria-label="장면 글쓰기"
             placeholder="이야기의 첫 문장을 써보세요…"
             spellcheck="true"
           ></textarea>
+          <div
+            id="typewriterAfter"
+            class="typewriter-space"
+            aria-hidden="true"
+          ></div>
           <section class="references" aria-label="장면 참고 이미지">
             <div class="references-heading">
               <h2>
@@ -420,6 +447,41 @@
         <button id="confirmCancel" class="subtle-button">취소</button
         ><button id="confirmAction" class="primary-button">확인</button>
       </div>
+    </dialog>
+    <dialog
+      id="workspaceDialog"
+      class="workspace-dialog"
+      aria-labelledby="workspaceDialogTitle"
+    >
+      <form id="workspaceForm">
+        <div class="dialog-heading">
+          <h2 id="workspaceDialogTitle">작업실 이름 바꾸기</h2>
+          <button
+            type="button"
+            id="closeWorkspace"
+            class="icon-button"
+            aria-label="이름 변경 창 닫기"
+          >
+            <span data-icon="close"></span>
+          </button>
+        </div>
+        <p class="dialog-description">왼쪽 이름과 브라우저 탭에 표시됩니다.</p>
+        <label for="workspaceNameInput"
+          >작업실 이름 <small>최대 30자</small></label
+        >
+        <input
+          id="workspaceNameInput"
+          required
+          maxlength="60"
+          autocomplete="off"
+          placeholder="나만의 작업실 이름"
+        />
+        <div class="workspace-dialog-actions">
+          <button type="button" id="cancelWorkspace" class="subtle-button">
+            취소</button
+          ><button type="submit" class="primary-button">저장</button>
+        </div>
+      </form>
     </dialog>
     <div id="toast" role="status"></div>
   </body>

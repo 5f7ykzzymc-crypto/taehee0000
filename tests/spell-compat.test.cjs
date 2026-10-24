@@ -15,6 +15,7 @@ const allowed = new Set([
   "style.css",
   "proofread.js",
   "spell-engine.js",
+  "typewriter.js",
   "vendor/hunspell-engine.js",
   "vendor/korean-dictionary.js",
 ]);

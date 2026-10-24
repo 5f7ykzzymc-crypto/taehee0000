@@ -24,6 +24,7 @@ before(async () => {
         "style.css",
         "proofread.js",
         "spell-engine.js",
+        "typewriter.js",
         "vendor/hunspell-engine.js",
         "vendor/korean-dictionary.js",
       ].includes(name)
@@ -722,5 +723,229 @@ test("new launch filename and compatibility entry both run the same editor", asy
   assert.equal(await page.locator("#editor").inputValue(), "계속 보관할 원고");
   await page.goto(base + "/index.html");
   assert.equal(await page.locator("#editor").inputValue(), "계속 보관할 원고");
+  await context.close();
+});
+
+async function settleLayout(page) {
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
+}
+async function explicitLineDelta(page) {
+  return page.locator("#editor").evaluate((editor) => {
+    const pane = document.getElementById("documentScroll"),
+      style = getComputedStyle(editor),
+      height = parseFloat(style.lineHeight);
+    const position =
+      editor.selectionDirection === "backward"
+        ? editor.selectionStart
+        : editor.selectionEnd;
+    const row = editor.value.slice(0, position).split("\n").length - 1;
+    const caret =
+      editor.getBoundingClientRect().top +
+      parseFloat(style.paddingTop) +
+      row * height +
+      height / 2 -
+      editor.scrollTop;
+    return caret - (pane.getBoundingClientRect().top + pane.clientHeight / 2);
+  });
+}
+async function moveCaret(page, position) {
+  await page.locator("#editor").evaluate((editor, position) => {
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(position, position);
+    editor.dispatchEvent(new Event("select"));
+  }, position);
+  await settleLayout(page);
+}
+test("typewriter mode centers first/middle/last lines, follows typing, and stops when off", async () => {
+  const { context, page } = await fresh();
+  const text = Array.from({ length: 70 }, () => "짧은 줄").join("\n");
+  await page.locator("#editor").fill(text);
+  await page.locator("#typewriter").click();
+  for (const position of [0, 100, text.length]) {
+    await moveCaret(page, position);
+    assert.ok(
+      Math.abs(await explicitLineDelta(page)) < 2,
+      "active line centered at " + position,
+    );
+  }
+  await page.keyboard.insertText("\n다음 줄");
+  await settleLayout(page);
+  assert.ok(Math.abs(await explicitLineDelta(page)) < 2);
+  const before = await page
+    .locator("#documentScroll")
+    .evaluate((el) => el.scrollTop);
+  await page.locator("#documentScroll").evaluate((el) => (el.scrollTop -= 120));
+  await settleLayout(page);
+  assert.ok(
+    Math.abs(
+      (await page.locator("#documentScroll").evaluate((el) => el.scrollTop)) -
+        (before - 120),
+    ) < 2,
+    "manual browsing is not pulled back",
+  );
+  await page.keyboard.press("ArrowLeft");
+  await settleLayout(page);
+  assert.ok(Math.abs(await explicitLineDelta(page)) < 2);
+  await page.locator("#typewriter").click();
+  await settleLayout(page);
+  assert.equal(
+    await page.locator("#typewriter").getAttribute("aria-pressed"),
+    "false",
+  );
+  assert.equal(
+    await page.locator("#typewriterBefore").evaluate((el) => el.offsetHeight),
+    0,
+  );
+  const stopped = await page
+    .locator("#documentScroll")
+    .evaluate((el) => el.scrollTop);
+  await moveCaret(page, 0);
+  assert.equal(
+    await page.locator("#documentScroll").evaluate((el) => el.scrollTop),
+    stopped,
+  );
+  await context.close();
+});
+test("typewriter mode handles soft wraps, font and viewport changes, with no autofocus on reload", async () => {
+  const { context, page } = await fresh();
+  const text =
+    "긴 문장도 자연스럽게 이어서 작성합니다. ".repeat(100) + "마지막";
+  await page.locator("#editor").fill(text);
+  await page.locator("#typewriter").click();
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await moveCaret(page, text.length);
+    const delta = await page.locator("#editor").evaluate((editor) => {
+      const pane = document.getElementById("documentScroll"),
+        style = getComputedStyle(editor),
+        height = parseFloat(style.lineHeight);
+      const caret =
+        editor.getBoundingClientRect().top +
+        editor.scrollHeight -
+        parseFloat(style.paddingBottom) -
+        height / 2 -
+        editor.scrollTop;
+      return caret - (pane.getBoundingClientRect().top + pane.clientHeight / 2);
+    });
+    assert.ok(
+      Math.abs(delta) < 2,
+      "wrapped final line centered at " + width + "px: " + delta,
+    );
+  }
+  await page.locator("#fontSize").click();
+  await moveCaret(page, text.length);
+  assert.equal(await page.locator("#editor").inputValue(), text);
+  await page.reload();
+  await settleLayout(page);
+  assert.equal(
+    await page.locator("#typewriter").getAttribute("aria-pressed"),
+    "true",
+  );
+  assert.notEqual(
+    await page.evaluate(() => document.activeElement.id),
+    "editor",
+  );
+  assert.equal(
+    await page.locator("#typewriterBefore").evaluate((el) => el.offsetHeight),
+    0,
+    "no initial whitespace until writing starts",
+  );
+  await page.locator("#charactersNav").click();
+  assert.equal(await page.locator("#typewriter").isVisible(), false);
+  await context.close();
+});
+test("typewriter mode waits until Korean IME composition ends before moving the viewport", async () => {
+  const { context, page } = await fresh();
+  await page
+    .locator("#editor")
+    .fill(Array.from({ length: 50 }, () => "짧은 줄").join("\n"));
+  await page.locator("#typewriter").click();
+  await moveCaret(page, 0);
+  const before = await page
+    .locator("#documentScroll")
+    .evaluate((el) => el.scrollTop);
+  await page.locator("#editor").evaluate((editor) => {
+    editor.dispatchEvent(
+      new CompositionEvent("compositionstart", { data: "ㅎ" }),
+    );
+    editor.setSelectionRange(editor.value.length, editor.value.length);
+    editor.value += "\n한글 조합";
+    editor.setSelectionRange(editor.value.length, editor.value.length);
+    editor.dispatchEvent(
+      new InputEvent("input", {
+        inputType: "insertCompositionText",
+        data: "한글 조합",
+        isComposing: true,
+      }),
+    );
+  });
+  await settleLayout(page);
+  assert.ok(
+    Math.abs(
+      (await page.locator("#documentScroll").evaluate((el) => el.scrollTop)) -
+        before,
+    ) < 2,
+    "composition does not jump",
+  );
+  await page
+    .locator("#editor")
+    .dispatchEvent("compositionend", { data: "한글 조합" });
+  await settleLayout(page);
+  assert.ok(Math.abs(await explicitLineDelta(page)) < 2);
+  assert.match(await page.locator("#editor").inputValue(), /한글 조합$/);
+  await context.close();
+});
+
+test("workspace name updates logo and browser title, persists, and travels in backups", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#renameWorkspace").click();
+  await page.locator("#workspaceNameInput").fill("나의 이야기");
+  await page.locator("#workspaceForm button[type=submit]").click();
+  assert.equal(
+    await page.locator("#workspaceName").textContent(),
+    "나의 이야기",
+  );
+  assert.equal(await page.title(), "나의 이야기 — 스토리 스튜디오");
+  await page.reload();
+  assert.equal(
+    await page.locator("#workspaceName").textContent(),
+    "나의 이야기",
+  );
+  const data = await backup(page);
+  assert.equal(data.workspaceName, "나의 이야기");
+  const next = await fresh();
+  await restore(next.page, data);
+  assert.equal(
+    await next.page.locator("#workspaceName").textContent(),
+    "나의 이야기",
+  );
+  assert.equal(await next.page.title(), "나의 이야기 — 스토리 스튜디오");
+  await context.close();
+  await next.context.close();
+});
+test("workspace rename validates whitespace, cancel preserves name, and old backups use the default", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#renameWorkspace").click();
+  await page.locator("#workspaceNameInput").fill("   ");
+  await page.locator("#workspaceForm button[type=submit]").click();
+  assert.equal(await page.locator("#workspaceDialog").isVisible(), true);
+  assert.equal(
+    await page
+      .locator("#workspaceNameInput")
+      .evaluate((el) => el.validity.valid),
+    false,
+  );
+  await page.locator("#workspaceNameInput").fill("취소할 이름");
+  await page.locator("#cancelWorkspace").click();
+  assert.equal(await page.locator("#workspaceName").textContent(), "여백");
+  const old = await backup(page);
+  delete old.workspaceName;
+  await restore(page, old);
+  assert.equal(await page.locator("#workspaceName").textContent(), "여백");
   await context.close();
 });

@@ -37,6 +37,7 @@ const initial = [
 const STORAGE_KEY = "yeobaek-project-v2";
 const $ = (id) => document.getElementById(id);
 const icons = {
+  typewriter: "M5 4h14 M5 12h14 M5 20h14 M1 9l3 3-3 3 M23 9l-3 3 3 3",
   sidebar: "M3 4h18v16H3z M9 4v16",
   book: "M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z M20 4h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h3z",
   pen: "m16 3 5 5-12 12-6 1 1-6z M14 5l5 5",
@@ -164,6 +165,10 @@ function normalizeProject(data) {
   const ids = new Set();
   return {
     version: 2,
+    workspaceName:
+      typeof data.workspaceName === "string" && data.workspaceName.trim()
+        ? [...data.workspaceName.trim()].slice(0, 30).join("")
+        : "여백",
     dictionary: Array.isArray(data.dictionary)
       ? data.dictionary
           .filter(
@@ -190,6 +195,7 @@ function normalizeProject(data) {
 }
 let project = {
   version: 2,
+  workspaceName: "여백",
   episodes: normalizeEpisodes(initial),
   characters: [],
   dictionary: [],
@@ -221,6 +227,8 @@ let view = "writing",
   font = 16,
   review = null,
   generation = 0;
+let typewriterEnabled = false,
+  typewriterController = null;
 let hasStorageError = false,
   imageBusy = false;
 try {
@@ -230,6 +238,7 @@ try {
     "sidebar-collapsed",
     settings.sidebarCollapsed === true,
   );
+  typewriterEnabled = settings.typewriter === true;
   if ([16, 18, 20, 22].includes(settings.font)) font = settings.font;
 } catch {}
 function saveSettings() {
@@ -239,6 +248,7 @@ function saveSettings() {
       JSON.stringify({
         dark: document.body.classList.contains("dark"),
         font,
+        typewriter: typewriterEnabled,
         sidebarCollapsed: document.body.classList.contains("sidebar-collapsed"),
       }),
     );
@@ -287,6 +297,7 @@ function counts() {
     $("editor").style.height = "auto";
     $("editor").style.height = $("editor").scrollHeight + "px";
   }
+  typewriterController?.sync();
 }
 function renderItems() {
   $("items").replaceChildren();
@@ -421,11 +432,14 @@ function renderImages(kind) {
   zone.hidden = images.length >= 6;
 }
 function render() {
+  renderWorkspaceName();
+  updateTypewriterButton();
   const isWriting = view === "writing";
   $("writingView").hidden = !isWriting;
   $("characterView").hidden = isWriting;
   $("outline").hidden = !isWriting;
   $("focus").hidden = !isWriting;
+  $("typewriter").hidden = !isWriting;
   $("focusNav").hidden = !isWriting;
   $("fontSize").textContent = "가 " + font;
   $("editor").style.fontSize = font + "px";
@@ -578,6 +592,61 @@ $("deleteCharacter").onclick = async () => {
   );
   render();
   toast("캐릭터 시트를 삭제했습니다.");
+};
+function renderWorkspaceName() {
+  $("workspaceName").textContent = project.workspaceName;
+  $("renameWorkspace").title = project.workspaceName + " · 이름 변경";
+  document.title = project.workspaceName + " — 스토리 스튜디오";
+}
+$("renameWorkspace").onclick = () => {
+  $("workspaceNameInput").value = project.workspaceName;
+  $("workspaceNameInput").setCustomValidity("");
+  $("workspaceDialog").showModal();
+  $("workspaceNameInput").focus();
+  $("workspaceNameInput").select();
+};
+$("closeWorkspace").onclick = $("cancelWorkspace").onclick = () =>
+  $("workspaceDialog").close();
+$("workspaceNameInput").oninput = () =>
+  $("workspaceNameInput").setCustomValidity("");
+$("workspaceForm").onsubmit = (event) => {
+  event.preventDefault();
+  const input = $("workspaceNameInput"),
+    name = input.value.trim();
+  if (!name || [...name].length > 30) {
+    input.setCustomValidity(
+      !name
+        ? "작업실 이름을 입력해 주세요."
+        : "이름은 30자까지 입력할 수 있습니다.",
+    );
+    input.reportValidity();
+    return;
+  }
+  project.workspaceName = name;
+  persist();
+  renderWorkspaceName();
+  $("workspaceDialog").close();
+};
+function updateTypewriterButton() {
+  $("typewriter").setAttribute("aria-pressed", String(typewriterEnabled));
+  $("typewriter").setAttribute(
+    "aria-label",
+    typewriterEnabled ? "타자기 모드 끄기" : "타자기 모드 켜기",
+  );
+  $("typewriter").title = typewriterEnabled
+    ? "타자기 모드 켜짐 · 입력 줄 중앙 고정"
+    : "타자기 모드 · 입력 줄을 화면 중앙에 고정";
+}
+$("typewriter").onclick = () => {
+  if (!typewriterController)
+    return toast(
+      "타자기 모드 파일을 불러오지 못했습니다. 새 ZIP의 typewriter.js도 함께 복사해 주세요.",
+    );
+  typewriterEnabled = !typewriterEnabled;
+  updateTypewriterButton();
+  saveSettings();
+  if (typewriterEnabled) $("editor").focus({ preventScroll: true });
+  typewriterController?.sync();
 };
 function updateSidebarButton() {
   const collapsed = document.body.classList.contains("sidebar-collapsed");
@@ -814,7 +883,10 @@ $("backup").onclick = () => {
   download(
     JSON.stringify(project, null, 2),
     "application/json",
-    "여백-전체백업-" + new Date().toISOString().slice(0, 10) + ".json",
+    project.workspaceName +
+      "-전체백업-" +
+      new Date().toISOString().slice(0, 10) +
+      ".json",
   );
   toast("원고와 캐릭터, 이미지를 함께 백업했습니다.");
 };
@@ -1340,6 +1412,16 @@ function updateApplyAll() {
 }
 
 render();
+if (window.YeobaekTypewriter) {
+  typewriterController = window.YeobaekTypewriter.attach({
+    editor: $("editor"),
+    scroller: $("documentScroll"),
+    before: $("typewriterBefore"),
+    after: $("typewriterAfter"),
+    isEnabled: () => typewriterEnabled && view === "writing",
+  });
+  typewriterController.sync();
+}
 if (loadProblem) {
   hasStorageError = true;
   $("saved").textContent = "저장 자료 확인 필요";
