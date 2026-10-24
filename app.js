@@ -37,6 +37,7 @@ const initial = [
 const STORAGE_KEY = "yeobaek-project-v2";
 const $ = (id) => document.getElementById(id);
 const icons = {
+  sidebar: "M3 4h18v16H3z M9 4v16",
   book: "M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z M20 4h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h3z",
   pen: "m16 3 5 5-12 12-6 1 1-6z M14 5l5 5",
   users:
@@ -216,13 +217,21 @@ let hasStorageError = false,
 try {
   const settings = JSON.parse(localStorage.getItem("yeobaek-ui") || "{}");
   document.body.classList.toggle("dark", settings.dark === true);
+  document.body.classList.toggle(
+    "sidebar-collapsed",
+    settings.sidebarCollapsed === true,
+  );
   if ([16, 18, 20, 22].includes(settings.font)) font = settings.font;
 } catch {}
 function saveSettings() {
   try {
     localStorage.setItem(
       "yeobaek-ui",
-      JSON.stringify({ dark: document.body.classList.contains("dark"), font }),
+      JSON.stringify({
+        dark: document.body.classList.contains("dark"),
+        font,
+        sidebarCollapsed: document.body.classList.contains("sidebar-collapsed"),
+      }),
     );
   } catch {}
 }
@@ -456,8 +465,7 @@ function render() {
 }
 function switchView(next) {
   view = next;
-  document.body.classList.remove("focus");
-  updateFocusButton();
+  exitFocus();
   render();
   $("documentScroll").scrollTop = 0;
 }
@@ -562,18 +570,97 @@ $("deleteCharacter").onclick = async () => {
   render();
   toast("캐릭터 시트를 삭제했습니다.");
 };
+function updateSidebarButton() {
+  const collapsed = document.body.classList.contains("sidebar-collapsed");
+  const label = collapsed ? "사이드바 펼치기" : "사이드바 접기";
+  $("toggleSidebar").setAttribute("aria-expanded", String(!collapsed));
+  $("toggleSidebar").setAttribute("aria-label", label);
+  $("toggleSidebar").title = label;
+}
+$("toggleSidebar").onclick = () => {
+  document.body.classList.toggle("sidebar-collapsed");
+  updateSidebarButton();
+  saveSettings();
+  counts();
+};
+updateSidebarButton();
+let ownsFullscreen = false,
+  requestingFullscreen = false;
+const fullscreenElement = () =>
+  document.fullscreenElement || document.webkitFullscreenElement;
 function updateFocusButton() {
   const active = document.body.classList.contains("focus");
-  $("focus").setAttribute("aria-pressed", active);
+  $("focus").setAttribute("aria-pressed", String(active));
   $("focus").querySelector(".tool-label").textContent = active
     ? "집중 종료"
     : "집중 모드";
+  $("focus").title = active ? "집중 모드 종료 (Esc)" : "집중 모드 · 전체 화면";
+  $("focus").setAttribute(
+    "aria-label",
+    active ? "집중 모드 종료" : "집중 모드 · 전체 화면",
+  );
 }
-function toggleFocus() {
-  document.body.classList.toggle("focus");
+async function releaseFullscreen() {
+  if (!ownsFullscreen || requestingFullscreen) return;
+  const shouldExit = fullscreenElement() === document.documentElement;
+  ownsFullscreen = false;
+  if (shouldExit) {
+    try {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) await exit.call(document);
+    } catch {
+      /* The browser may already have exited via Escape. */
+    }
+  }
+}
+function exitFocus() {
+  document.body.classList.remove("focus");
   updateFocusButton();
   counts();
+  void releaseFullscreen();
 }
+async function toggleFocus() {
+  if (document.body.classList.contains("focus")) {
+    exitFocus();
+    return;
+  }
+  document.body.classList.add("focus");
+  updateFocusButton();
+  counts();
+  if (fullscreenElement() || requestingFullscreen) return;
+  const root = document.documentElement;
+  const request = root.requestFullscreen || root.webkitRequestFullscreen;
+  if (!request) {
+    toast(
+      "집중 모드를 켰습니다. 주소줄은 브라우저 메뉴의 전체 화면으로 숨길 수 있습니다.",
+    );
+    return;
+  }
+  requestingFullscreen = true;
+  ownsFullscreen = true;
+  try {
+    if (root.requestFullscreen)
+      await root.requestFullscreen({ navigationUI: "hide" });
+    else await request.call(root);
+  } catch {
+    ownsFullscreen = false;
+    if (document.body.classList.contains("focus"))
+      toast(
+        "집중 모드를 켰습니다. 전체 화면이 허용되지 않아 주소줄이 남습니다. 브라우저 메뉴의 전체 화면을 사용해 주세요.",
+      );
+  } finally {
+    requestingFullscreen = false;
+    if (!document.body.classList.contains("focus")) void releaseFullscreen();
+  }
+}
+function onFullscreenChange() {
+  if (!fullscreenElement() && ownsFullscreen) {
+    ownsFullscreen = false;
+    if (document.body.classList.contains("focus")) exitFocus();
+  }
+}
+document.addEventListener("fullscreenchange", onFullscreenChange);
+document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 $("focus").onclick = toggleFocus;
 $("focusNav").onclick = toggleFocus;
 $("theme").onclick = () => {

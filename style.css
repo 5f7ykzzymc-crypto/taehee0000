@@ -1423,3 +1423,33 @@ dialog::backdrop {
 .character-empty h2 {
   word-break: keep-all;
 }
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.header-left > .icon-button {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.sidebar-collapsed .library,
+.sidebar-collapsed .outline,
+.focus #toggleSidebar {
+  display: none;
+}
+:root:fullscreen {
+  background: var(--bg);
+}
+:root:-webkit-full-screen {
+  background: var(--bg);
+}
+@media (max-width: 520px) {
+  header {
+    justify-content: space-between;
+  }
+  .header-left {
+    gap: 0;
+  }
+}

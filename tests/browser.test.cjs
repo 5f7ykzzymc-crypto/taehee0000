@@ -75,13 +75,11 @@ async function backup(page) {
   return JSON.parse(await fs.readFile(await (await pending).path(), "utf8"));
 }
 async function restore(page, data, confirm = true) {
-  await page
-    .locator("#restoreFile")
-    .setInputFiles({
-      name: "backup.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(data)),
-    });
+  await page.locator("#restoreFile").setInputFiles({
+    name: "backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(data)),
+  });
   if (confirm) await page.locator("#confirmAction").click();
 }
 test("existing v1 draft migrates without losing scenes, and edits persist after reload", async () => {
@@ -184,26 +182,22 @@ test("image upload, actual clipboard paste, deletion and reload preserve the cor
 test("image limit and unsupported file rejection leave existing images intact", async () => {
   const { context, page } = await fresh();
   await makeCharacter(page);
-  await page
-    .locator("#characterImageInput")
-    .setInputFiles({
-      name: "unsafe.svg",
-      mimeType: "image/svg+xml",
-      buffer: Buffer.from("<svg/>"),
-    });
+  await page.locator("#characterImageInput").setInputFiles({
+    name: "unsafe.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from("<svg/>"),
+  });
   await page.waitForFunction(() =>
     document.getElementById("toast").textContent.includes("PNG"),
   );
   assert.equal(await page.locator("#characterImages .image-card").count(), 0);
-  await page
-    .locator("#characterImageInput")
-    .setInputFiles(
-      Array.from({ length: 6 }, (_, i) => ({
-        name: i + ".png",
-        mimeType: "image/png",
-        buffer: png,
-      })),
-    );
+  await page.locator("#characterImageInput").setInputFiles(
+    Array.from({ length: 6 }, (_, i) => ({
+      name: i + ".png",
+      mimeType: "image/png",
+      buffer: png,
+    })),
+  );
   await page.waitForFunction(
     () =>
       document.querySelectorAll("#characterImages .image-card").length === 6,
@@ -411,6 +405,104 @@ test("downloaded index.html works directly without a web server or network", asy
     "오프라인 인물",
   );
   assert.equal(await page.locator("#characterImages .image-card").count(), 1);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("sidebar folds independently, persists, and restores its state after focus mode", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#toggleSidebar").click();
+  assert.equal(
+    await page.locator("#toggleSidebar").getAttribute("aria-expanded"),
+    "false",
+  );
+  assert.equal(await page.locator(".library").isVisible(), false);
+  assert.equal(await page.locator("#outline").isVisible(), false);
+  assert.equal(
+    await page.locator("#focus").getAttribute("aria-pressed"),
+    "false",
+  );
+  assert.equal(await page.evaluate(() => !!document.fullscreenElement), false);
+  await page.reload();
+  assert.equal(await page.locator(".library").isVisible(), false);
+  await page.locator("#focus").click();
+  await page.waitForFunction(
+    () => document.fullscreenElement === document.documentElement,
+  );
+  assert.equal(await page.locator("#toggleSidebar").isVisible(), false);
+  await page.locator("#focus").click();
+  await page.waitForFunction(() => !document.fullscreenElement);
+  assert.equal(await page.locator(".library").isVisible(), false);
+  await page.locator("#toggleSidebar").click();
+  assert.equal(await page.locator(".library").isVisible(), true);
+  await page.locator("#charactersNav").click();
+  await page.locator("#toggleSidebar").click();
+  assert.equal(await page.locator(".library").isVisible(), false);
+  await page.locator("#toggleSidebar").click();
+  assert.equal(await page.locator("#outline").isVisible(), false);
+  assert.equal(await page.locator(".library").isVisible(), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.locator("#toggleSidebar").isVisible(), true);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await context.close();
+});
+
+test("browser fullscreen exit synchronizes focus mode and restores navigation", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#focusNav").click();
+  await page.waitForFunction(() => !!document.fullscreenElement);
+  assert.equal(
+    await page.locator("#focus").getAttribute("aria-pressed"),
+    "true",
+  );
+  await page.evaluate(() => document.exitFullscreen());
+  await page.waitForFunction(() => !document.body.classList.contains("focus"));
+  assert.equal(
+    await page.locator("#focus").getAttribute("aria-pressed"),
+    "false",
+  );
+  assert.equal(await page.locator(".library").isVisible(), true);
+  assert.equal(
+    await page.locator("#toggleSidebar").getAttribute("aria-expanded"),
+    "true",
+  );
+  await context.close();
+});
+
+test("fullscreen rejection or missing API keeps usable focus mode with an explanation", async () => {
+  const { context, page } = await fresh();
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.evaluate(() => {
+    document.documentElement.requestFullscreen = () =>
+      Promise.reject(new Error("Permission denied"));
+  });
+  await page.locator("#focus").click();
+  await page.waitForFunction(() =>
+    document.getElementById("toast").textContent.includes("허용되지"),
+  );
+  assert.equal(
+    await page.locator("#focus").getAttribute("aria-pressed"),
+    "true",
+  );
+  assert.equal(await page.locator(".library").isVisible(), false);
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator(".library").isVisible(), true);
+  await page.evaluate(() => {
+    document.documentElement.requestFullscreen = undefined;
+    document.documentElement.webkitRequestFullscreen = undefined;
+  });
+  await page.locator("#focus").click();
+  await page.waitForFunction(() =>
+    document.getElementById("toast").textContent.includes("브라우저 메뉴"),
+  );
+  await page.locator("#focus").click();
+  assert.equal(await page.locator(".library").isVisible(), true);
   assert.deepEqual(errors, []);
   await context.close();
 });
