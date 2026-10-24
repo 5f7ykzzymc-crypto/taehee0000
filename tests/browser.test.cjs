@@ -22,11 +22,7 @@ before(async () => {
         "작업시작.html",
         "app.js",
         "style.css",
-        "proofread.js",
-        "spell-engine.js",
         "typewriter.js",
-        "vendor/hunspell-engine.js",
-        "vendor/korean-dictionary.js",
       ].includes(name)
     ) {
       res.writeHead(404).end();
@@ -64,14 +60,6 @@ async function fresh() {
   const page = await context.newPage();
   await page.goto(base);
   return { context, page };
-}
-async function reviewReady(page) {
-  await page.waitForFunction(
-    () =>
-      document.getElementById("reviewProgress").hidden &&
-      !document.getElementById("reviewError").textContent,
-    { timeout: 30000 },
-  );
 }
 async function makeCharacter(page, name = "서연") {
   await page.locator("#charactersNav").click();
@@ -232,34 +220,6 @@ test("image limit and unsupported file rejection leave existing images intact", 
   assert.equal(await page.locator("#characterImages .image-card").count(), 6);
   await context.close();
 });
-test("proofread reviews, applies individual/all changes and undoes the last change", async () => {
-  const { context, page } = await fresh();
-  const original = "😀 오랫만에 역활을 맡았다. 내가 할께. 그는 이미 도착했다.";
-  await page.locator("#editor").fill(original);
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 3);
-  assert.equal(await page.locator("#editor").inputValue(), original);
-  await page.locator(".review-change button").first().click();
-  assert.match(await page.locator("#editor").inputValue(), /오랜만/);
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 2);
-  await page.locator("#applyAll").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 0);
-  assert.match(await page.locator("#editor").inputValue(), /역할.*할게/);
-  await page.locator(".undo-button").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 2);
-  await page.locator("#applyAll").click();
-  await page.locator("#closeReview").click();
-  await page.reload();
-  assert.equal(
-    await page.locator("#editor").inputValue(),
-    "😀 오랜만에 역할을 맡았다. 내가 할게. 그는 이미 도착했다.",
-  );
-  await context.close();
-});
 test("full backup transfers characters and images to a fresh browser and Markdown embeds images", async () => {
   const { context, page } = await fresh();
   await makeCharacter(page, "인물 <script>");
@@ -391,7 +351,6 @@ test("focus, theme, and responsive categories retain a usable layout", async () 
       "sheet width " + width,
     );
     await page.locator("#writingNav").click();
-    assert.equal(await page.locator("#proofread").isVisible(), true);
     assert.equal(
       await page
         .locator("#documentScroll")
@@ -529,190 +488,6 @@ test("fullscreen rejection or missing API keeps usable focus mode with an explan
   await page.locator("#focus").click();
   assert.equal(await page.locator(".library").isVisible(), true);
   assert.deepEqual(errors, []);
-  await context.close();
-});
-
-test("real Korean dictionary finds errors beyond the original twelve rules without external requests", async () => {
-  const { context, page } = await fresh();
-  const external = [];
-  context.on("request", (request) => {
-    if (/^https?:/.test(request.url()) && !request.url().startsWith(base + "/"))
-      external.push(request.url());
-  });
-  await page.locator("#editor").fill("먹엇다. 않녕하세요. 괜찬아. 밥을먹었다.");
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 4);
-  const pairs = await page
-    .locator(".review-row")
-    .evaluateAll((rows) =>
-      rows.map((row) => [
-        row.querySelector("del").textContent,
-        row.querySelector(".replacement-input").value,
-      ]),
-    );
-  assert.deepEqual(pairs, [
-    ["먹엇다", "먹었다"],
-    ["않녕하세요", "안녕하세요"],
-    ["괜찬아", "괜찮아"],
-    ["밥을먹었다", "밥을 먹었다"],
-  ]);
-  await page.locator("#applyAll").click();
-  await reviewReady(page);
-  assert.equal(
-    await page.locator("#editor").inputValue(),
-    "먹었다. 안녕하세요. 괜찮아. 밥을 먹었다.",
-  );
-  assert.equal(await page.locator(".review-row").count(), 0);
-  assert.deepEqual(external, []);
-  await context.close();
-});
-test("writer can choose a different engine suggestion before applying", async () => {
-  const { context, page } = await fresh();
-  await page.locator("#editor").fill("안녕하세오.");
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  await page.locator(".replacement-input").selectOption("안녕하세요");
-  await page.locator(".apply-one").click();
-  await reviewReady(page);
-  assert.equal(await page.locator("#editor").inputValue(), "안녕하세요.");
-  await context.close();
-});
-test("character names with particles and personal dictionary survive checking and backup", async () => {
-  const { context, page } = await fresh();
-  await makeCharacter(page, "해솔루");
-  await page.locator("#writingNav").click();
-  await page.locator("#editor").fill("해솔루는 밥을 먹었다.");
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 0);
-  await page.locator("#closeReview").click();
-  await page.locator("#editor").fill("루미노아");
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 1);
-  await page.getByRole("button", { name: "사전에 추가", exact: true }).click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 0);
-  await page.locator("#closeReview").click();
-  const data = await backup(page);
-  assert.deepEqual(data.dictionary, ["루미노아"]);
-  await page.reload();
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 0);
-  await page.locator("#dictionarySummary").click();
-  await page.getByRole("button", { name: "루미노아 사전에서 삭제" }).click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 1);
-  await context.close();
-});
-test("missing engine files show a visible retryable error instead of reporting no errors", async () => {
-  const { context, page } = await fresh();
-  await page.route("**/vendor/hunspell-engine.js", (route) => route.abort());
-  await page.locator("#editor").fill("먹엇다");
-  await page.locator("#proofread").click();
-  await page.waitForFunction(
-    () => !document.getElementById("reviewError").hidden,
-  );
-  assert.match(await page.locator("#reviewError").textContent(), /vendor/);
-  assert.equal(await page.locator("#applyAll").textContent(), "다시 검사");
-  await page.unroute("**/vendor/hunspell-engine.js");
-  await page.locator("#applyAll").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 1);
-  await context.close();
-});
-test("cancelled checks can be reopened without stale results or unhandled errors", async () => {
-  const { context, page } = await fresh();
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.locator("#editor").fill("먹엇다. 괜찬아.");
-  await page.locator("#proofread").click();
-  await page.locator("#closeReview").click();
-  await page.locator("#editor").fill("안녕하세요.");
-  await page.locator("#proofread").click();
-  await reviewReady(page);
-  assert.equal(await page.locator(".review-row").count(), 0);
-  assert.deepEqual(errors, []);
-  await context.close();
-});
-
-test("blocked worker initialization shows an error without unhandled rejections", async () => {
-  const { context, page } = await fresh();
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.evaluate(() => {
-    window.Worker = function () {
-      throw new DOMException("blocked", "SecurityError");
-    };
-  });
-  await page.locator("#editor").fill("먹엇다");
-  await page.locator("#proofread").click();
-  await page.waitForFunction(
-    () => !document.getElementById("reviewError").hidden,
-  );
-  assert.match(await page.locator("#reviewError").textContent(), /차단/);
-  assert.equal(await page.locator("#applyAll").textContent(), "다시 검사");
-  assert.deepEqual(errors, []);
-  await context.close();
-});
-
-test("damaged dictionary is rejected with an actionable compact error, never an all-clear result", async () => {
-  const { context, page } = await fresh();
-  await page.evaluate(() => {
-    let dictionary;
-    Object.defineProperty(window, "YeobaekKoreanDictionary", {
-      configurable: true,
-      get: () => dictionary,
-      set(value) {
-        const bytes = Uint8Array.from(atob(value.aff), (c) => c.charCodeAt(0));
-        bytes[bytes.length - 8] ^= 1;
-        let binary = "";
-        for (let offset = 0; offset < bytes.length; offset += 8192)
-          binary += String.fromCharCode(
-            ...bytes.subarray(offset, offset + 8192),
-          );
-        value.aff = btoa(binary);
-        dictionary = value;
-      },
-    });
-  });
-  await page.locator("#editor").fill("먹엇다");
-  await page.locator("#proofread").click();
-  await page.waitForFunction(
-    () => !document.getElementById("reviewError").hidden,
-  );
-  assert.match(
-    await page.locator(".review-error-message").textContent(),
-    /한국어 사전을 읽지 못했습니다/,
-  );
-  assert.equal(
-    await page.locator(".review-error-detail").getAttribute("open"),
-    null,
-  );
-  assert.equal(await page.locator(".review-row").count(), 0);
-  assert.equal(await page.locator("#applyAll").textContent(), "다시 검사");
-  assert.equal(await page.locator("#personalDictionary").isVisible(), false);
-  assert.equal(
-    await page
-      .locator("#proofreadDialog")
-      .evaluate((el) => el.getBoundingClientRect().height < 380),
-    true,
-  );
-  await page.setViewportSize({ width: 390, height: 844 });
-  assert.equal(
-    await page
-      .locator("#proofreadDialog")
-      .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
-    true,
-  );
-  assert.equal(
-    await page
-      .locator("#proofreadDialog")
-      .evaluate((el) => el.getBoundingClientRect().height < 430),
-    true,
-  );
   await context.close();
 });
 
@@ -947,5 +722,57 @@ test("workspace rename validates whitespace, cancel preserves name, and old back
   delete old.workspaceName;
   await restore(page, old);
   assert.equal(await page.locator("#workspaceName").textContent(), "여백");
+  await context.close();
+});
+
+test("spell checker is absent and old backup metadata does not affect Korean writing", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage(),
+    requests = [],
+    errors = [];
+  context.on("request", (request) => requests.push(request.url()));
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(base);
+  assert.equal(await page.locator("#proofread, #proofreadDialog").count(), 0);
+  assert.equal(
+    await page.locator("#editor").getAttribute("spellcheck"),
+    "false",
+  );
+  assert.deepEqual(
+    await page.evaluate(() => [
+      typeof window.YeobaekProofread,
+      typeof window.YeobaekSpellEngine,
+    ]),
+    ["undefined", "undefined"],
+  );
+  const text =
+    "맞춤뻡이 틀려도 내가 쓴 원고 그대로.\n인물의 말투도 그대로 보관합니다.";
+  await page.locator("#editor").fill(text);
+  await page.reload();
+  assert.equal(await page.locator("#editor").inputValue(), text);
+  await makeCharacter(page, "이전 백업의 인물");
+  await page.locator("#characterNotes").fill("보관해야 하는 인물 메모");
+  const oldBackup = await backup(page);
+  oldBackup.dictionary = ["예전에 등록한 단어"];
+  await restore(page, oldBackup);
+  assert.equal(await page.locator("#editor").inputValue(), text);
+  await page.locator("#charactersNav").click();
+  assert.equal(
+    await page.locator("#characterName").inputValue(),
+    "이전 백업의 인물",
+  );
+  assert.equal(
+    await page.locator("#characterNotes").inputValue(),
+    "보관해야 하는 인물 메모",
+  );
+  const refreshed = await backup(page);
+  assert.equal(Object.hasOwn(refreshed, "dictionary"), false);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(
+    requests.filter((url) =>
+      /proofread|spell-engine|hunspell|dictionary|\.wasm(?:$|\?)/i.test(url),
+    ),
+    [],
+  );
   await context.close();
 });
