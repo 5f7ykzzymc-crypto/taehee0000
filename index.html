@@ -1,1 +1,394 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>여백 — 이야기가 시작되는 곳</title><link rel="stylesheet" href="style.css"><body><aside class="library"><div class="brand">여백<span>STORY STUDIO</span></div><button id="project" class="project">◈ &nbsp; 여름의 끝에서 <span>⌄</span></button><div class="section">WORKSPACE</div><button class="nav active">▤ &nbsp; 모든 에피소드 <small id="total">3</small></button><button id="focusNav" class="nav">◉ &nbsp; 집중해서 쓰기</button><div class="section episodes-title">에피소드 <button id="add" title="에피소드 추가">＋</button></div><div id="episodes"></div><div class="library-bottom"><div class="avatar">나</div><div>나의 작업 공간<small>이 브라우저에 자동 저장됩니다</small></div></div></aside><aside class="outline"><div class="outline-header">에피소드 구성 <span id="sceneCount">3개의 장면</span></div><div id="scenes"></div><button id="addScene" class="add-scene">＋ 장면 추가</button><div class="note"><span>✧ WRITING NOTE</span><p>좋은 이야기는 작은 순간에서<br>시작됩니다. 오늘의 한 장면을<br>천천히 써 내려가 보세요.</p></div></aside><main><header><div class="breadcrumb">여름의 끝에서 <b>/</b> <span id="crumb"></span></div><div class="tools"><span id="saved">✓ 저장됨</span><button id="theme" title="테마 변경">◐</button><button id="focus" title="집중 모드 (Esc로 종료)">⛶ <span>집중 모드</span></button><button id="export">내보내기 ↗</button></div></header><div class="document-scroll"><article><div class="eyebrow">EPISODE <span id="epnum">01</span><span class="status">작성 중</span></div><input id="title" aria-label="에피소드 제목"><input id="subtitle" aria-label="에피소드 설명" placeholder="이 에피소드의 한 줄 소개를 적어보세요"><div class="divider"></div><div class="scene-label"><span id="sceneLabel"></span><div><button class="format selected" data-insert="">본문</button><button class="format" data-insert="\n[장면 설명]\n">지문</button><button class="format" data-insert="\n인물: “대사”\n">대사</button></div></div><textarea id="editor" aria-label="장면 글쓰기" spellcheck="false"></textarea><div class="end-mark">✧</div></article></div><footer><div><span class="green"></span>모든 이야기는 한 문장에서 시작됩니다.</div><div><span id="count"></span><i></i><span id="reading"></span><i></i><button id="fontSize">가 18</button><span>한국어</span></div></footer></main><div id="toast" role="status"></div><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>여백 — 이야기가 시작되는 곳</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="proofread.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <aside class="library" aria-label="작업 공간">
+      <div class="brand">여백<span>STORY STUDIO</span></div>
+      <div class="project">
+        <span class="project-icon" data-icon="book"></span>
+        <div>여름의 끝에서<small>나의 이야기 작업실</small></div>
+      </div>
+      <div class="section-label">작업 공간 <span>WORKSPACE</span></div>
+      <nav class="categories" aria-label="카테고리">
+        <button id="writingNav" class="nav active" aria-current="page">
+          <span data-icon="pen"></span><span>글쓰기</span
+          ><small id="total">3</small>
+        </button>
+        <button id="charactersNav" class="nav">
+          <span data-icon="users"></span><span>캐릭터 시트</span
+          ><small id="characterTotal">0</small>
+        </button>
+        <button id="focusNav" class="nav quiet">
+          <span data-icon="focus"></span><span>집중해서 쓰기</span>
+        </button>
+      </nav>
+      <div class="library-list">
+        <div class="list-heading">
+          <span id="listLabel">에피소드</span
+          ><button
+            id="add"
+            class="icon-button"
+            aria-label="에피소드 추가"
+            title="새 항목 추가"
+          >
+            <span data-icon="plus"></span>
+          </button>
+        </div>
+        <div id="items"></div>
+      </div>
+      <div class="library-bottom">
+        <div class="local-status">
+          <span class="green"></span><span>이 브라우저에 자동 저장</span>
+        </div>
+        <div class="backup-tools">
+          <button
+            id="backup"
+            title="원고와 캐릭터, 이미지를 하나의 파일로 저장"
+          >
+            전체 백업</button
+          ><span>·</span><button id="restore">백업 불러오기</button>
+        </div>
+        <button id="recoverData" class="recovery-button" hidden>
+          이전 저장 자료 내려받기
+        </button>
+        <input
+          type="file"
+          id="restoreFile"
+          accept=".json,application/json"
+          hidden
+        />
+      </div>
+    </aside>
+    <aside class="outline" id="outline" aria-label="에피소드 장면">
+      <div class="outline-header">
+        에피소드 구성 <span id="sceneCount">3개의 장면</span>
+      </div>
+      <div id="scenes"></div>
+      <button id="addScene" class="add-scene">
+        <span data-icon="plus"></span> 장면 추가
+      </button>
+      <div class="note">
+        <span>✧ WRITING NOTE</span>
+        <p>
+          좋은 이야기는 작은 순간에서<br />시작됩니다. 오늘의 한 장면을<br />천천히
+          써 내려가 보세요.
+        </p>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <div class="breadcrumb">
+          <span id="categoryCrumb">글쓰기</span><b>/</b><span id="crumb"></span>
+        </div>
+        <div class="tools">
+          <span id="saved" role="status">✓ 저장됨</span>
+          <button
+            id="theme"
+            class="icon-button"
+            title="다크 모드 전환"
+            aria-label="다크 모드 전환"
+            aria-pressed="false"
+          >
+            <span data-icon="moon"></span>
+          </button>
+          <button
+            id="focus"
+            title="집중 모드 (Esc로 종료)"
+            aria-pressed="false"
+          >
+            <span data-icon="focus"></span
+            ><span class="tool-label">집중 모드</span>
+          </button>
+          <button id="export">
+            <span data-icon="export"></span><span>내보내기</span>
+          </button>
+        </div>
+      </header>
+      <div class="document-scroll" id="documentScroll">
+        <article id="writingView" class="writing-view">
+          <div class="eyebrow">
+            EPISODE <span id="epnum">01</span
+            ><span class="status">작성 중</span>
+          </div>
+          <input
+            id="title"
+            aria-label="에피소드 제목"
+            placeholder="에피소드 제목"
+          />
+          <input
+            id="subtitle"
+            aria-label="에피소드 설명"
+            placeholder="이 에피소드의 한 줄 소개를 적어보세요"
+          />
+          <div class="divider"></div>
+          <div class="scene-label">
+            <div>
+              <span class="scene-number" id="sceneNumber">SCENE 01</span
+              ><input
+                id="sceneTitle"
+                aria-label="장면 제목"
+                placeholder="장면 제목"
+              />
+            </div>
+            <div class="format-tools">
+              <button class="format selected" data-insert="">본문</button
+              ><button class="format" data-insert="\n[장면 설명]\n">지문</button
+              ><button class="format" data-insert="\n인물: “대사”\n">
+                대사
+              </button>
+            </div>
+          </div>
+          <div class="writing-actions">
+            <button id="proofread" class="subtle-button">
+              <span data-icon="checkText"></span>오타 검수·수정</button
+            ><span>현재 장면 검수</span>
+          </div>
+          <textarea
+            id="editor"
+            aria-label="장면 글쓰기"
+            placeholder="이야기의 첫 문장을 써보세요…"
+            spellcheck="true"
+          ></textarea>
+          <section class="references" aria-label="장면 참고 이미지">
+            <div class="references-heading">
+              <h2>
+                <span data-icon="image"></span>장면 참고 이미지
+                <small id="sceneImageCount">0</small>
+              </h2>
+              <label class="upload-button" for="sceneImageInput"
+                >이미지 추가</label
+              >
+            </div>
+            <div id="sceneImages" class="image-gallery"></div>
+            <div
+              id="sceneDropzone"
+              class="dropzone"
+              tabindex="0"
+              role="button"
+              aria-label="장면 참고 이미지 붙여넣기 또는 파일 선택"
+            >
+              <span data-icon="image"></span>
+              <p>장면의 분위기를 이미지로 남겨보세요</p>
+              <small>이미지를 복사한 뒤 붙여넣기 · 끌어놓기 · 파일 선택</small>
+            </div>
+            <input
+              type="file"
+              id="sceneImageInput"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              hidden
+            />
+          </section>
+          <div class="end-mark">✧</div>
+        </article>
+        <article id="characterView" class="character-view" hidden>
+          <div class="eyebrow">
+            CHARACTER SHEET<span class="status">인물 설정</span>
+          </div>
+          <div class="character-page-heading">
+            <div>
+              <h1>이야기에 생명을 더하다</h1>
+              <p>외모부터 말하지 못한 비밀까지, 인물의 세계를 기록하세요.</p>
+            </div>
+            <button id="newCharacter" class="subtle-button">
+              <span data-icon="plus"></span>새 캐릭터
+            </button>
+          </div>
+          <div id="characterEmpty" class="character-empty" hidden>
+            <span data-icon="users"></span>
+            <h2>어떤 인물을 만나게 될까요?</h2>
+            <p>첫 캐릭터 시트를 만들고 이야기를 채워보세요.</p>
+            <button id="createFirstCharacter" class="primary-button">
+              첫 캐릭터 만들기
+            </button>
+          </div>
+          <div id="characterSheet">
+            <div class="character-intro">
+              <input
+                id="characterName"
+                aria-label="캐릭터 이름"
+                placeholder="캐릭터 이름"
+              /><input
+                id="characterTagline"
+                aria-label="캐릭터 한 줄 소개"
+                placeholder="이 인물을 표현하는 한 문장"
+              />
+            </div>
+            <div class="character-layout">
+              <section class="character-visual">
+                <div class="field-heading">
+                  <h2>비주얼 레퍼런스</h2>
+                  <span id="characterImageCount">0 / 6</span>
+                </div>
+                <div
+                  id="characterImages"
+                  class="image-gallery character-gallery"
+                ></div>
+                <div
+                  id="characterDropzone"
+                  class="dropzone"
+                  tabindex="0"
+                  role="button"
+                  aria-label="캐릭터 이미지 붙여넣기 또는 파일 선택"
+                >
+                  <span data-icon="image"></span>
+                  <p>인물의 모습을 담아보세요</p>
+                  <small>이미지 붙여넣기 또는 끌어놓기</small
+                  ><span class="upload-button">파일 선택</span>
+                </div>
+                <input
+                  type="file"
+                  id="characterImageInput"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  multiple
+                  hidden
+                />
+                <p class="image-hint">
+                  PNG · JPG · WebP · GIF / 최대 6장<br />이미지는 저장하기 좋은
+                  크기로 조정됩니다.
+                </p>
+              </section>
+              <section class="character-profile">
+                <div class="field-heading">
+                  <h2>기본 정보</h2>
+                  <span>PROFILE</span>
+                </div>
+                <div class="profile-grid">
+                  <label
+                    >극 중 역할<input
+                      id="characterRole"
+                      placeholder="예: 주인공 · 조력자" /></label
+                  ><label
+                    >나이 / 직업<input
+                      id="characterAge"
+                      placeholder="예: 24세 · 대학생"
+                  /></label>
+                </div>
+                <label class="field"
+                  >외모와 특징<textarea
+                    id="characterAppearance"
+                    rows="3"
+                    placeholder="첫인상, 표정, 버릇, 자주 입는 옷…"
+                  ></textarea></label
+                ><label class="field"
+                  >성격과 말투<textarea
+                    id="characterPersonality"
+                    rows="3"
+                    placeholder="남들에게 보이는 모습과 진짜 성격은 어떤가요?"
+                  ></textarea>
+                </label>
+              </section>
+            </div>
+            <div class="character-details">
+              <div class="field-heading">
+                <h2>인물의 이야기</h2>
+                <span>STORY & RELATIONSHIPS</span>
+              </div>
+              <div class="detail-grid">
+                <label class="field"
+                  >배경과 과거<textarea
+                    id="characterBackstory"
+                    rows="4"
+                    placeholder="지금의 인물을 만든 사건이나 기억"
+                  ></textarea></label
+                ><label class="field"
+                  >욕망과 갈등<textarea
+                    id="characterMotivation"
+                    rows="4"
+                    placeholder="가장 원하는 것과 그것을 막는 것"
+                  ></textarea></label
+                ><label class="field"
+                  >인물 관계<textarea
+                    id="characterRelationships"
+                    rows="4"
+                    placeholder="누구를 사랑하고, 누구와 갈등하나요?"
+                  ></textarea></label
+                ><label class="field"
+                  >작가의 메모<textarea
+                    id="characterNotes"
+                    rows="4"
+                    placeholder="비밀, 변화의 방향, 떠오르는 아이디어…"
+                  ></textarea>
+                </label>
+              </div>
+            </div>
+            <div class="sheet-bottom">
+              <span>설정은 언제든 바꿀 수 있어요.</span
+              ><button id="deleteCharacter" class="danger-button">
+                캐릭터 삭제
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+      <footer>
+        <div>
+          <span class="green"></span
+          ><span id="footerMessage">모든 이야기는 한 문장에서 시작됩니다.</span>
+        </div>
+        <div>
+          <span id="count"></span><i></i><span id="reading"></span><i></i
+          ><button id="fontSize" title="원고 글자 크기 변경">가 16</button
+          ><span>한국어</span>
+        </div>
+      </footer>
+    </main>
+    <dialog
+      id="proofreadDialog"
+      class="review-dialog"
+      aria-labelledby="reviewTitle"
+    >
+      <div class="dialog-heading">
+        <div>
+          <div class="eyebrow">WRITING REVIEW</div>
+          <h2 id="reviewTitle">오타 검수·수정</h2>
+        </div>
+        <button id="closeReview" class="icon-button" aria-label="검수 창 닫기">
+          <span data-icon="close"></span>
+        </button>
+      </div>
+      <p class="dialog-description">
+        현재 장면의 자주 틀리는 표현을 확인합니다. 고유명사와 대사 표현을 살펴본
+        뒤 수정해 주세요.
+      </p>
+      <div class="review-notice">
+        오프라인 기본 검수입니다. 모든 맞춤법·띄어쓰기를 판단하지 않으며, 원고를
+        외부로 전송하지 않습니다.
+      </div>
+      <div id="reviewResults"></div>
+      <div class="review-footer">
+        <span id="reviewSummary" role="status"></span
+        ><button id="applyAll" class="primary-button">모두 수정</button>
+      </div>
+    </dialog>
+    <dialog
+      id="imageDialog"
+      class="image-dialog"
+      aria-label="참고 이미지 크게 보기"
+    >
+      <button id="closeImage" class="icon-button" aria-label="이미지 닫기">
+        <span data-icon="close"></span></button
+      ><img id="largeImage" alt="참고 이미지 크게 보기" />
+    </dialog>
+    <dialog
+      id="confirmDialog"
+      class="confirm-dialog"
+      aria-labelledby="confirmTitle"
+    >
+      <h2 id="confirmTitle"></h2>
+      <p id="confirmMessage"></p>
+      <div>
+        <button id="confirmCancel" class="subtle-button">취소</button
+        ><button id="confirmAction" class="primary-button">확인</button>
+      </div>
+    </dialog>
+    <div id="toast" role="status"></div>
+  </body>
+</html>
