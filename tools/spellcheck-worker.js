@@ -2,16 +2,40 @@
 import initialize from "hunspell-wasm/wasm/hunspell.js";
 import { Hunspell } from "hunspell-wasm/dist/Hunspell.js";
 import wasmBase64 from "yeobaek:wasm";
+import { gunzipSync } from "fflate";
 let engine;
 function decode(value) {
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 }
-async function unpack(value) {
-  const stream = new Blob([decode(value)])
-    .stream()
-    .pipeThrough(new DecompressionStream("gzip"));
-  return new Response(stream).text();
+const crcTable = Uint32Array.from({ length: 256 }, (_, index) => {
+  let crc = index;
+  for (let bit = 0; bit < 8; bit++)
+    crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  return crc >>> 0;
+});
+function unpack(value) {
+  // Avoid Safari's file-backed Blob/DecompressionStream read path.
+  // Keep gzip CRC and size validation when decoding entirely in memory.
+  const packed = decode(value);
+  if (packed.length < 18)
+    throw new Error("Korean dictionary gzip is incomplete");
+  const trailer = new DataView(
+    packed.buffer,
+    packed.byteOffset + packed.length - 8,
+    8,
+  );
+  const expectedCRC = trailer.getUint32(0, true),
+    expectedSize = trailer.getUint32(4, true);
+  if (expectedSize > 20000000)
+    throw new Error("Korean dictionary is too large");
+  const bytes = gunzipSync(packed);
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 255];
+  if (bytes.length !== expectedSize || (crc ^ 0xffffffff) >>> 0 !== expectedCRC)
+    throw new Error("Korean dictionary integrity check failed");
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
+
 const suffixes = [
   "",
   "은",
@@ -59,14 +83,21 @@ const suffixes = [
   "라면",
 ];
 self.onmessage = async ({ data }) => {
+  let stage = "check";
   try {
     if (data.type === "init") {
-      const [aff, dic, wasm] = await Promise.all([
-        unpack(data.dictionary.aff),
-        unpack(data.dictionary.dic),
-        initialize({ wasmBinary: decode(wasmBase64) }),
-      ]);
+      stage = "dictionary-read";
+      const aff = unpack(data.dictionary.aff),
+        dic = unpack(data.dictionary.dic);
+      stage = "engine-start";
+      const wasm = await initialize({ wasmBinary: decode(wasmBase64) });
+      stage = "dictionary-link";
       engine = new Hunspell(wasm, aff, dic);
+      if (
+        !engine.testSpelling("안녕하세요") ||
+        engine.testSpelling("않녕하세요")
+      )
+        throw new Error("Korean dictionary self-check failed");
       self.postMessage({ type: "ready" });
       return;
     }
@@ -133,6 +164,7 @@ self.onmessage = async ({ data }) => {
   } catch (error) {
     self.postMessage({
       type: "error",
+      code: stage,
       message: error.message || "맞춤법 검사 중 오류가 발생했습니다.",
     });
   }

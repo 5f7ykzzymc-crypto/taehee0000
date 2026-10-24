@@ -1,7 +1,11 @@
 /* Local-only Hunspell worker bridge. Works with classic scripts, including file://. */
 (() => {
   "use strict";
-  let worker, ready, readyResolve, readyReject, current;
+  let worker, workerURL, readyTimer, ready, readyResolve, readyReject, current;
+  function releaseWorkerURL() {
+    if (workerURL) URL.revokeObjectURL(workerURL);
+    workerURL = undefined;
+  }
   const scripts = new Map();
   function loadScript(path) {
     if (scripts.has(path)) return scripts.get(path);
@@ -26,6 +30,8 @@
   function reset(error) {
     worker?.terminate();
     worker = undefined;
+    clearTimeout(readyTimer);
+    releaseWorkerURL();
     ready = undefined;
     readyReject?.(error);
     readyResolve = undefined;
@@ -40,11 +46,7 @@
       loadScript("vendor/korean-dictionary.js"),
     ]);
     if (ready) return ready;
-    if (
-      typeof Worker !== "function" ||
-      typeof WebAssembly !== "object" ||
-      typeof DecompressionStream !== "function"
-    )
+    if (typeof Worker !== "function" || typeof WebAssembly !== "object")
       throw new Error(
         "이 브라우저에서는 검사 엔진을 실행할 수 없습니다. 최신 Safari, Chrome 또는 Edge로 열어 주세요.",
       );
@@ -53,13 +55,12 @@
       readyReject = reject;
     });
     const initialization = ready;
-    const url = URL.createObjectURL(
+    const url = (workerURL = URL.createObjectURL(
       new Blob([self.YeobaekHunspellWorkerSource], { type: "text/javascript" }),
-    );
+    ));
     try {
       worker = new Worker(url);
     } catch (error) {
-      URL.revokeObjectURL(url);
       reset(
         new Error(
           "이 브라우저에서 검사 실행이 차단되었습니다. 최신 Safari, Chrome 또는 Edge로 다시 열어 주세요.",
@@ -67,9 +68,20 @@
       );
       return initialization;
     }
-    URL.revokeObjectURL(url);
+    // Keep the Blob URL alive until the worker has read and initialized it.
+    readyTimer = setTimeout(
+      () =>
+        reset(
+          new Error(
+            "검사 엔진 준비가 지연되었습니다. 창을 닫고 다시 시도해 주세요.",
+          ),
+        ),
+      30000,
+    );
     worker.onmessage = ({ data }) => {
       if (data.type === "ready") {
+        clearTimeout(readyTimer);
+        releaseWorkerURL();
         readyResolve?.();
         readyResolve = undefined;
         readyReject = undefined;
@@ -80,7 +92,11 @@
         current = undefined;
         done?.resolve(data);
       }
-      if (data.type === "error") reset(new Error(data.message));
+      if (data.type === "error") {
+        const error = new Error(data.message);
+        error.code = data.code;
+        reset(error);
+      }
     };
     worker.onerror = (event) => {
       event.preventDefault();

@@ -81,6 +81,7 @@ await copyFile(
   prefix + "dictionary-ko/license",
   "vendor/licenses/korean-dictionary-license.md",
 );
+await copyFile(prefix + "fflate/LICENSE", "vendor/licenses/fflate-MIT.txt");
 console.log(
   "Bundled worker, inline WebAssembly, and gzip-compressed Korean dictionary. No runtime fetches or imports required.",
 );

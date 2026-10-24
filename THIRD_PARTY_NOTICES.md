@@ -24,13 +24,20 @@
 - 여백의 변경: 사전 내용 자체를 고치지 않고 gzip/base64로 포장하여 `vendor/korean-dictionary.js`로 배포합니다. 사용자가 추가한 단어는 별도 프로젝트 자료에 저장하며 원본 사전을 변경하지 않습니다.
 - 사전은 엔진 및 여백 앱 코드와 구별되는 데이터 파일로 배포됩니다. 원본 저작권·라이선스 고지를 함께 보관해 주세요.
 
+## 압축 해제 라이브러리
+
+- [fflate 0.8.2](https://github.com/101arrowz/fflate), Copyright (c) 2023 Arjun Barrett, MIT License.
+- 라이선스 전문은 `vendor/licenses/fflate-MIT.txt`에 포함했습니다.
+- 원본 gzip 사전 바이트를 메모리에서 해제합니다. Safari에서 오류가 발생할 수 있는 Blob 스트림 기반 파일 읽기를 사용하지 않습니다.
+- `package-lock.json`에 배포 패키지의 버전과 무결성 값이 고정되어 있습니다.
+
 ## 재현 방법
 
 Node.js 20 이상에서 아래를 실행합니다. 앱 사용자는 빌드할 필요가 없습니다.
 
 ```sh
 npm ci
-npm run build:spellcheck
+npm run build
 ```
 
 정확한 의존성 버전과 무결성 값은 `package-lock.json`, 사전·WASM·대응 소스 아카이브의 SHA-256은 `vendor/CHECKSUMS.json`에 있습니다. 소스 아카이브는 위 고정 커밋의 GitHub codeload에서 가져왔으며 ZIP 다운로드에 함께 포함됩니다. 사전 생성 방식은 아카이브의 README와 Makefile, Hunspell WASM 재컴파일 지침은 엔진 소스의 `docs/Building.md`와 Makefile을 참고하세요.

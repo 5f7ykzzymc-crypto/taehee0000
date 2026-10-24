@@ -369,13 +369,18 @@
         </button>
       </div>
       <p class="dialog-description">
-        한국어 사전으로 현재 장면의 단어와 활용형을 검사합니다. 고유명사와 대사
-        표현을 살펴본 뒤 수정해 주세요.
+        수정할 표현을 확인하고 원하는 제안을 적용하세요.
       </p>
-      <div class="review-notice">
-        Hunspell 한국어 사전을 기기 안에서 실행합니다. 원고를 외부로 보내지
-        않습니다. 문맥에 따른 문법·띄어쓰기는 모두 판별하지 못하며, 고유명사와
-        대사는 직접 확인해 주세요.
+      <div class="review-topline">
+        <span class="review-scope">현재 장면</span>
+        <details class="review-details">
+          <summary>검사 안내</summary>
+          <div class="review-notice">
+            한국어 사전으로 검사하며 원고를 외부로 보내지 않습니다.
+            문맥·문법·띄어쓰기를 모두 판별하지 못하므로 이름과 대사 표현은 직접
+            확인해 주세요.
+          </div>
+        </details>
       </div>
       <div
         id="reviewProgress"
@@ -384,12 +389,12 @@
         hidden
       ></div>
       <div id="reviewError" class="review-error" role="alert" hidden></div>
-      <details class="personal-dictionary">
+      <div id="reviewResults"></div>
+      <details id="personalDictionary" class="personal-dictionary">
         <summary id="dictionarySummary">나만의 사전</summary>
-        <p>등록한 단어와 캐릭터 시트의 이름은 검사에서 제외합니다.</p>
+        <p>등록한 단어와 캐릭터 이름은 검사에서 제외합니다.</p>
         <div id="dictionaryWords"></div>
       </details>
-      <div id="reviewResults"></div>
       <div class="review-footer">
         <span id="reviewSummary" role="status"></span
         ><button id="applyAll" class="primary-button">모두 수정</button>

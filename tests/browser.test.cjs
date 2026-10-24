@@ -14,10 +14,12 @@ const png = Buffer.from(
 let browser, server, base;
 before(async () => {
   server = http.createServer(async (req, res) => {
-    const name = req.url === "/" ? "index.html" : req.url.slice(1);
+    const name =
+      req.url === "/" ? "작업시작.html" : decodeURIComponent(req.url.slice(1));
     if (
       ![
         "index.html",
+        "작업시작.html",
         "app.js",
         "style.css",
         "proofread.js",
@@ -400,14 +402,14 @@ test("focus, theme, and responsive categories retain a usable layout", async () 
   }
   await context.close();
 });
-test("downloaded index.html works directly without a web server or network", async (t) => {
+test("downloaded 작업시작.html works directly without a web server or network", async (t) => {
   const context = await browser.newContext();
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.route("https://**", (route) => route.abort());
   try {
-    await page.goto("file://" + path.join(root, "index.html"));
+    await page.goto("file://" + path.join(root, "작업시작.html"));
   } catch (error) {
     if (error.message.includes("ERR_BLOCKED_BY_ADMINISTRATOR")) {
       await context.close();
@@ -652,5 +654,73 @@ test("blocked worker initialization shows an error without unhandled rejections"
   assert.match(await page.locator("#reviewError").textContent(), /차단/);
   assert.equal(await page.locator("#applyAll").textContent(), "다시 검사");
   assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("damaged dictionary is rejected with an actionable compact error, never an all-clear result", async () => {
+  const { context, page } = await fresh();
+  await page.evaluate(() => {
+    let dictionary;
+    Object.defineProperty(window, "YeobaekKoreanDictionary", {
+      configurable: true,
+      get: () => dictionary,
+      set(value) {
+        const bytes = Uint8Array.from(atob(value.aff), (c) => c.charCodeAt(0));
+        bytes[bytes.length - 8] ^= 1;
+        let binary = "";
+        for (let offset = 0; offset < bytes.length; offset += 8192)
+          binary += String.fromCharCode(
+            ...bytes.subarray(offset, offset + 8192),
+          );
+        value.aff = btoa(binary);
+        dictionary = value;
+      },
+    });
+  });
+  await page.locator("#editor").fill("먹엇다");
+  await page.locator("#proofread").click();
+  await page.waitForFunction(
+    () => !document.getElementById("reviewError").hidden,
+  );
+  assert.match(
+    await page.locator(".review-error-message").textContent(),
+    /한국어 사전을 읽지 못했습니다/,
+  );
+  assert.equal(
+    await page.locator(".review-error-detail").getAttribute("open"),
+    null,
+  );
+  assert.equal(await page.locator(".review-row").count(), 0);
+  assert.equal(await page.locator("#applyAll").textContent(), "다시 검사");
+  assert.equal(await page.locator("#personalDictionary").isVisible(), false);
+  assert.equal(
+    await page
+      .locator("#proofreadDialog")
+      .evaluate((el) => el.getBoundingClientRect().height < 380),
+    true,
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await page
+      .locator("#proofreadDialog")
+      .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+    true,
+  );
+  assert.equal(
+    await page
+      .locator("#proofreadDialog")
+      .evaluate((el) => el.getBoundingClientRect().height < 430),
+    true,
+  );
+  await context.close();
+});
+
+test("new launch filename and compatibility entry both run the same editor", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#editor").fill("계속 보관할 원고");
+  await page.goto(base + "/" + encodeURIComponent("작업시작.html"));
+  assert.equal(await page.locator("#editor").inputValue(), "계속 보관할 원고");
+  await page.goto(base + "/index.html");
+  assert.equal(await page.locator("#editor").inputValue(), "계속 보관할 원고");
   await context.close();
 });

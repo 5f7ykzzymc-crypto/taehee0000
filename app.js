@@ -1069,6 +1069,7 @@ async function runReview() {
   active.controller = new AbortController();
   active.loading = true;
   active.error = "";
+  active.errorDetail = "";
   active.issues = [];
   active.progress = "한국어 사전과 검사 엔진을 준비하고 있습니다…";
   renderReview();
@@ -1102,8 +1103,24 @@ async function runReview() {
     active.checked = result.checked;
   } catch (error) {
     if (review !== active || error.name === "AbortError") return;
+    const explanations = {
+      "dictionary-read":
+        "한국어 사전을 읽지 못했습니다. 최신 앱의 vendor 폴더까지 함께 교체해 주세요.",
+      "engine-start":
+        "맞춤법 검사 엔진을 준비하지 못했습니다. 검사창을 닫았다가 다시 열어 주세요.",
+      "dictionary-link":
+        "사전과 검사 엔진이 맞지 않습니다. 최신 앱 파일을 모두 함께 교체해 주세요.",
+    };
     active.error =
-      error.message || "검사를 완료하지 못했습니다. 다시 시도해 주세요.";
+      explanations[error.code] ||
+      (/^[A-Za-z]/.test(error.message || "")
+        ? "검사 중 문제가 생겼습니다. 창을 닫았다가 다시 시도해 주세요."
+        : error.message) ||
+      "검사를 완료하지 못했습니다. 다시 시도해 주세요.";
+    active.errorDetail =
+      error.message && active.error !== error.message
+        ? (error.code ? error.code + ": " : "") + error.message
+        : "";
   } finally {
     if (review === active) {
       active.loading = false;
@@ -1177,7 +1194,22 @@ function renderReview() {
   $("reviewProgress").hidden = !review.loading;
   $("reviewProgress").textContent = review.progress || "";
   $("reviewError").hidden = !review.error;
-  $("reviewError").textContent = review.error;
+  $("reviewError").replaceChildren();
+  if (review.error) {
+    $("reviewError").append(
+      element("div", "review-error-message", review.error),
+    );
+    if (review.errorDetail) {
+      const details = element("details", "review-error-detail");
+      details.append(
+        element("summary", "", "오류 상세"),
+        element("p", "", review.errorDetail),
+      );
+      $("reviewError").append(details);
+    }
+  }
+  $("personalDictionary").hidden =
+    !!review.error || (review.loading && !project.dictionary.length);
   renderDictionary();
   const issues = review.issues;
   issues.forEach((issue, index) => {
@@ -1233,12 +1265,12 @@ function renderReview() {
       void runReview();
     };
     actions.append(ignore, remember);
-    row.append(
-      change,
-      element("p", "review-context", context),
-      element("small", "", issue.reason),
-      actions,
-    );
+    row.append(change, element("p", "review-context", context), actions);
+    if (issue.rules?.length)
+      row.insertBefore(
+        element("small", "review-reason", issue.reason),
+        actions,
+      );
     container.append(row);
   });
   if (!issues.length && !review.loading && !review.error) {
@@ -1267,7 +1299,7 @@ function renderReview() {
         ? "검사 중 · 창을 닫으면 취소됩니다."
         : review.error
           ? "검사를 완료하지 못했습니다."
-          : `${review.checked}어절 검사 · ${issues.length}개의 확인 항목`,
+          : `${review.checked}어절 · 확인 ${issues.length}개`,
     ),
   );
   if (review.lastApplied && !review.loading) {
@@ -1302,7 +1334,7 @@ function updateApplyAll() {
   button.textContent = review.loading
     ? "검사 중…"
     : valid.length
-      ? `선택한 제안 모두 수정 (${valid.length})`
+      ? `전체 적용 (${valid.length})`
       : "검사 완료";
   button.onclick = () => applyCorrections(valid);
 }

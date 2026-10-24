@@ -1,15 +1,17 @@
 {
   "name": "yeobaek-story-studio",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "scripts": {
     "build:spellcheck": "node tools/build-spellcheck.mjs",
     "test": "node --test tests/proofread.test.cjs",
-    "test:browser": "node --test tests/browser.test.cjs"
+    "test:browser": "node --test tests/browser.test.cjs",
+    "build": "npm run build:spellcheck && node tools/sync-entry.mjs"
   },
   "devDependencies": {
     "dictionary-ko": "2.0.0",
     "esbuild": "0.25.12",
+    "fflate": "0.8.2",
     "hunspell-wasm": "0.3.0"
   }
 }
