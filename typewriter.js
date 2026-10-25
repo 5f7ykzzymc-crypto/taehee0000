@@ -75,12 +75,36 @@
       const enabled = isEnabled();
       if (!enabled) trackingStarted = false;
       else if (document.activeElement === editor) trackingStarted = true;
-      const height =
-        enabled && trackingStarted
-          ? Math.ceil(scroller.clientHeight / 2) + "px"
-          : "0px";
-      if (before.style.height !== height) before.style.height = height;
-      if (after.style.height !== height) after.style.height = height;
+      let leading = 0,
+        trailing = 0;
+      if (enabled && trackingStarted && editor.getClientRects().length) {
+        const style = getComputedStyle(editor);
+        const lineHeight =
+          parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+        const firstLineCenter =
+          (parseFloat(style.borderTopWidth) || 0) +
+          (parseFloat(style.paddingTop) || 0) +
+          lineHeight / 2;
+        const naturalEditorTop =
+          editor.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top -
+          scroller.clientTop +
+          scroller.scrollTop -
+          before.getBoundingClientRect().height;
+        // Reserve room only before the text. The title stays at its natural
+        // top position, while the first line starts at the pane's center.
+        leading = Math.max(
+          0,
+          scroller.clientHeight / 2 - naturalEditorTop - firstLineCenter,
+        );
+        trailing = Math.ceil(scroller.clientHeight / 2);
+      }
+      const leadingHeight = leading + "px",
+        trailingHeight = trailing + "px";
+      if (before.style.height !== leadingHeight)
+        before.style.height = leadingHeight;
+      if (after.style.height !== trailingHeight)
+        after.style.height = trailingHeight;
     }
 
     function caretLineCenter() {

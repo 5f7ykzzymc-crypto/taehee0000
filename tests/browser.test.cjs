@@ -607,6 +607,71 @@ async function moveCaret(page, position) {
   }, position);
   await settleLayout(page);
 }
+test("typewriter entry keeps episode and scene headings at the top while centering only the writing line", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#editor").fill("첫 문장");
+  const positions = () =>
+    page.locator("#documentScroll").evaluate((pane) => {
+      const top = pane.getBoundingClientRect().top;
+      return {
+        title:
+          document.querySelector(".episode-heading").getBoundingClientRect()
+            .top - top,
+        scene:
+          document.querySelector(".scene-label").getBoundingClientRect().top -
+          top,
+        editor:
+          document.getElementById("editor").getBoundingClientRect().top - top,
+        scroll: pane.scrollTop,
+      };
+    });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width === 390) await page.locator("#toggleOutline").click();
+    for (const intro of [false, true]) {
+      if (
+        (await page
+          .locator("#toggleEpisodeDetails")
+          .getAttribute("aria-expanded")) !== String(intro)
+      )
+        await page.locator("#toggleEpisodeDetails").click();
+      await moveCaret(page, 0);
+      const before = await positions();
+      assert.ok(
+        before.title >= 0 && before.title < 24,
+        "title starts at the top",
+      );
+      await page.locator("#typewriter").click();
+      await settleLayout(page);
+      const active = await positions();
+      assert.ok(
+        Math.abs(active.title - before.title) < 1,
+        "episode heading is not pushed down",
+      );
+      assert.ok(
+        Math.abs(active.scene - before.scene) < 1,
+        "scene heading is not pushed down",
+      );
+      assert.ok(
+        active.scroll < 1,
+        "first line centers without scrolling the headings away",
+      );
+      assert.ok(
+        Math.abs(await explicitLineDelta(page)) < 2,
+        "first writing line is centered",
+      );
+      await page.locator("#typewriter").click();
+      await settleLayout(page);
+      const restored = await positions();
+      assert.ok(Math.abs(restored.title - before.title) < 1);
+      assert.ok(
+        Math.abs(restored.editor - before.editor) < 1,
+        "turning the mode off restores normal spacing",
+      );
+    }
+  }
+  await context.close();
+});
 test("typewriter mode centers first/middle/last lines, follows typing, and stops when off", async () => {
   const { context, page } = await fresh();
   const text = Array.from({ length: 70 }, () => "짧은 줄").join("\n");
