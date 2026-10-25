@@ -79,16 +79,28 @@
     <main>
       <header>
         <div class="header-left">
-          <button
-            id="toggleSidebar"
-            class="icon-button"
-            aria-label="사이드바 접기"
-            title="사이드바 접기"
-            aria-expanded="true"
-            aria-controls="library outline"
-          >
-            <span data-icon="sidebar"></span>
-          </button>
+          <div class="panel-toggles" role="group" aria-label="작업 패널">
+            <button
+              id="toggleSidebar"
+              class="icon-button"
+              aria-label="작업 목록 접기"
+              title="작업 목록 접기"
+              aria-expanded="true"
+              aria-controls="library"
+            >
+              <span data-icon="sidebar"></span>
+            </button>
+            <button
+              id="toggleOutline"
+              class="icon-button"
+              aria-label="장면 구성 접기"
+              title="장면 구성 접기"
+              aria-expanded="true"
+              aria-controls="outline"
+            >
+              <span data-icon="outline"></span>
+            </button>
+          </div>
           <div class="breadcrumb">
             <span id="categoryCrumb">글쓰기</span><b>/</b
             ><span id="crumb"></span>
@@ -128,6 +140,11 @@
       </header>
       <div class="document-scroll" id="documentScroll">
         <article id="writingView" class="writing-view">
+          <div
+            id="typewriterBefore"
+            class="typewriter-space"
+            aria-hidden="true"
+          ></div>
           <div class="episode-heading">
             <span class="episode-number" aria-label="에피소드 번호"
               >EP <span id="epnum">01</span></span
@@ -171,45 +188,23 @@
               </button>
             </div>
           </div>
-          <div
-            id="typewriterBefore"
-            class="typewriter-space"
-            aria-hidden="true"
-          ></div>
           <textarea
             id="editor"
             aria-label="장면 글쓰기"
             spellcheck="false"
           ></textarea>
           <div
+            id="sceneImages"
+            class="image-gallery scene-images"
+            role="group"
+            aria-label="장면 이미지"
+            hidden
+          ></div>
+          <div
             id="typewriterAfter"
             class="typewriter-space"
             aria-hidden="true"
           ></div>
-          <section class="references" aria-label="장면 참고 이미지">
-            <div class="references-heading">
-              <h2>
-                <span data-icon="image"></span>장면 참고 이미지
-                <small id="sceneImageCount">0</small>
-              </h2>
-              <button
-                id="sceneAddImage"
-                class="upload-button"
-                aria-label="장면 이미지 추가"
-                title="이미지 추가 · 붙여넣기·끌어놓기 지원"
-              >
-                이미지 추가
-              </button>
-            </div>
-            <div id="sceneImages" class="image-gallery"></div>
-            <input
-              type="file"
-              id="sceneImageInput"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              multiple
-              hidden
-            />
-          </section>
         </article>
         <article id="characterView" class="character-view" hidden>
           <div class="character-page-heading">

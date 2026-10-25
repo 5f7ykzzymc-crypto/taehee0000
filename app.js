@@ -39,6 +39,7 @@ const $ = (id) => document.getElementById(id);
 const icons = {
   typewriter: "M5 4h14 M5 12h14 M5 20h14 M1 9l3 3-3 3 M23 9l-3 3 3 3",
   sidebar: "M3 4h18v16H3z M9 4v16",
+  outline: "M4 5h3 M11 5h9 M4 12h3 M11 12h9 M4 19h3 M11 19h9",
   book: "M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z M20 4h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h3z",
   pen: "m16 3 5 5-12 12-6 1 1-6z M14 5l5 5",
   users:
@@ -227,6 +228,13 @@ try {
     "sidebar-collapsed",
     settings.sidebarCollapsed === true,
   );
+  document.body.classList.toggle(
+    "outline-collapsed",
+    typeof settings.outlineCollapsed === "boolean"
+      ? settings.outlineCollapsed
+      : settings.sidebarCollapsed === true ||
+          window.matchMedia("(max-width: 1000px)").matches,
+  );
   typewriterEnabled = settings.typewriter === true;
   if ([16, 18, 20, 22].includes(settings.font)) font = settings.font;
 } catch {}
@@ -239,6 +247,7 @@ function saveSettings() {
         font,
         typewriter: typewriterEnabled,
         sidebarCollapsed: document.body.classList.contains("sidebar-collapsed"),
+        outlineCollapsed: document.body.classList.contains("outline-collapsed"),
       }),
     );
   } catch {}
@@ -410,10 +419,12 @@ function renderImages(kind) {
     figure.append(open, remove, element("figcaption", "", image.name));
     container.append(figure);
   });
-  $(
-    kind === "character" ? "characterImageCount" : "sceneImageCount",
-  ).textContent = kind === "character" ? images.length + " / 6" : images.length;
-  $(kind + "AddImage").disabled = images.length >= 6;
+  if (kind === "character") {
+    $("characterImageCount").textContent = images.length + " / 6";
+    $("characterAddImage").disabled = images.length >= 6;
+  } else {
+    container.hidden = images.length === 0;
+  }
 }
 function render() {
   renderWorkspaceName();
@@ -422,6 +433,7 @@ function render() {
   $("writingView").hidden = !isWriting;
   $("characterView").hidden = isWriting;
   $("outline").hidden = !isWriting;
+  $("toggleOutline").hidden = !isWriting;
   $("focus").hidden = !isWriting;
   $("typewriter").hidden = !isWriting;
   $("focusNav").hidden = !isWriting;
@@ -637,14 +649,25 @@ $("typewriter").onclick = () => {
   typewriterController?.sync();
 };
 function updateSidebarButton() {
-  const collapsed = document.body.classList.contains("sidebar-collapsed");
-  const label = collapsed ? "사이드바 펼치기" : "사이드바 접기";
-  $("toggleSidebar").setAttribute("aria-expanded", String(!collapsed));
-  $("toggleSidebar").setAttribute("aria-label", label);
-  $("toggleSidebar").title = label;
+  [
+    ["toggleSidebar", "sidebar-collapsed", "작업 목록"],
+    ["toggleOutline", "outline-collapsed", "장면 구성"],
+  ].forEach(([id, className, name]) => {
+    const collapsed = document.body.classList.contains(className);
+    const label = name + (collapsed ? " 펼치기" : " 접기");
+    $(id).setAttribute("aria-expanded", String(!collapsed));
+    $(id).setAttribute("aria-label", label);
+    $(id).title = label;
+  });
 }
 $("toggleSidebar").onclick = () => {
   document.body.classList.toggle("sidebar-collapsed");
+  updateSidebarButton();
+  saveSettings();
+  counts();
+};
+$("toggleOutline").onclick = () => {
+  document.body.classList.toggle("outline-collapsed");
   updateSidebarButton();
   saveSettings();
   counts();
@@ -1019,16 +1042,20 @@ async function addImages(files, kind) {
   }
 }
 ["scene", "character"].forEach((kind) => {
-  const input = $(kind + "ImageInput"),
-    zone = document.querySelector(
-      kind === "scene" ? ".references" : ".character-visual",
-    );
-  $(kind + "AddImage").onclick = () => input.click();
-  input.onchange = (event) => {
-    addImages(event.target.files, kind);
-    input.value = "";
-  };
+  const zone =
+    kind === "scene"
+      ? $("writingView")
+      : document.querySelector(".character-visual");
+  if (kind === "character") {
+    const input = $("characterImageInput");
+    $("characterAddImage").onclick = () => input.click();
+    input.onchange = (event) => {
+      addImages(event.target.files, kind);
+      input.value = "";
+    };
+  }
   zone.addEventListener("dragover", (event) => {
+    if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
     event.preventDefault();
     zone.classList.add("dragging");
   });
@@ -1036,8 +1063,9 @@ async function addImages(files, kind) {
     if (!zone.contains(event.relatedTarget)) zone.classList.remove("dragging");
   });
   zone.addEventListener("drop", (event) => {
-    event.preventDefault();
     zone.classList.remove("dragging");
+    if (!event.dataTransfer?.files.length) return;
+    event.preventDefault();
     addImages(event.dataTransfer.files, kind);
   });
 });

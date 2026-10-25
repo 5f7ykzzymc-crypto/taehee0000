@@ -185,12 +185,28 @@ test("image upload, actual clipboard paste, deletion and reload preserve the cor
   await page.locator("#confirmAction").click();
   assert.equal(await page.locator("#characterImages .image-card").count(), 1);
   await page.locator("#writingNav").click();
-  await upload(page, "scene", "장면.png");
+  assert.equal(
+    await page
+      .locator(
+        ".references, #sceneAddImage, #sceneImageInput, #sceneImageCount",
+      )
+      .count(),
+    0,
+  );
+  assert.equal(await page.locator("#sceneImages").isVisible(), false);
+  await page.locator("#editor").focus();
+  await page.keyboard.press("Control+V");
+  await page.waitForFunction(
+    () => document.querySelectorAll("#sceneImages .image-card").length === 1,
+  );
+  assert.equal(await page.locator("#sceneImages").isVisible(), true);
   await page.locator("#scenes .scene").nth(1).click();
   assert.equal(await page.locator("#sceneImages .image-card").count(), 0);
+  assert.equal(await page.locator("#sceneImages").isVisible(), false);
   await page.locator("#scenes .scene").first().click();
   assert.equal(await page.locator("#sceneImages .image-card").count(), 1);
-  await page.locator(".references").evaluate((zone, bytes) => {
+  const originalText = await page.locator("#editor").inputValue();
+  await page.locator("#editor").evaluate((zone, bytes) => {
     const transfer = new DataTransfer();
     transfer.items.add(
       new File([new Uint8Array(bytes)], "드롭.png", { type: "image/png" }),
@@ -206,6 +222,9 @@ test("image upload, actual clipboard paste, deletion and reload preserve the cor
   await page.waitForFunction(
     () => document.querySelectorAll("#sceneImages .image-card").length === 2,
   );
+  assert.equal(await page.locator("#editor").inputValue(), originalText);
+  await page.reload();
+  assert.equal(await page.locator("#sceneImages .image-card").count(), 2);
   const data = await backup(page);
   assert.match(data.characters[0].images[0].data, /^data:image\/webp;base64,/);
   assert.equal(data.episodes[0].scenes[0].images.length, 2);
@@ -416,46 +435,75 @@ test("downloaded 작업시작.html works directly without a web server or networ
   await context.close();
 });
 
-test("sidebar folds independently, persists, and restores its state after focus mode", async () => {
+test("episode and scene panels fold independently, persist, and restore after focus mode", async () => {
   const { context, page } = await fresh();
+  const checkPanels = async (library, outline) => {
+    assert.equal(await page.locator("#library").isVisible(), library);
+    assert.equal(await page.locator("#outline").isVisible(), outline);
+    assert.equal(
+      await page.locator("#toggleSidebar").getAttribute("aria-expanded"),
+      String(library),
+    );
+    assert.equal(
+      await page.locator("#toggleOutline").getAttribute("aria-expanded"),
+      String(outline),
+    );
+  };
+  await checkPanels(true, true);
   await page.locator("#toggleSidebar").click();
-  assert.equal(
-    await page.locator("#toggleSidebar").getAttribute("aria-expanded"),
-    "false",
-  );
-  assert.equal(await page.locator(".library").isVisible(), false);
-  assert.equal(await page.locator("#outline").isVisible(), false);
-  assert.equal(
-    await page.locator("#focus").getAttribute("aria-pressed"),
-    "false",
-  );
+  await checkPanels(false, true);
   assert.equal(await page.evaluate(() => !!document.fullscreenElement), false);
+  await page.locator("#toggleOutline").click();
+  await checkPanels(false, false);
+  await page.locator("#toggleSidebar").click();
+  await checkPanels(true, false);
   await page.reload();
-  assert.equal(await page.locator(".library").isVisible(), false);
+  await checkPanels(true, false);
   await page.locator("#focus").click();
   await page.waitForFunction(
     () => document.fullscreenElement === document.documentElement,
   );
-  assert.equal(await page.locator("#toggleSidebar").isVisible(), false);
+  for (const id of ["library", "outline", "toggleSidebar", "toggleOutline"])
+    assert.equal(await page.locator("#" + id).isVisible(), false);
   await page.locator("#focus").click();
   await page.waitForFunction(() => !document.fullscreenElement);
-  assert.equal(await page.locator(".library").isVisible(), false);
+  await checkPanels(true, false);
+  await page.locator("#toggleOutline").click();
+  await checkPanels(true, true);
   await page.locator("#toggleSidebar").click();
-  assert.equal(await page.locator(".library").isVisible(), true);
+  await checkPanels(false, true);
+  await page.reload();
+  await checkPanels(false, true);
+  await page.locator("#toggleSidebar").click();
   await page.locator("#charactersNav").click();
-  await page.locator("#toggleSidebar").click();
-  assert.equal(await page.locator(".library").isVisible(), false);
-  await page.locator("#toggleSidebar").click();
+  assert.equal(await page.locator("#toggleOutline").isVisible(), false);
   assert.equal(await page.locator("#outline").isVisible(), false);
-  assert.equal(await page.locator(".library").isVisible(), true);
+  await page.locator("#toggleSidebar").click();
+  assert.equal(await page.locator("#library").isVisible(), false);
+  await page.locator("#toggleSidebar").click();
+  await page.locator("#writingNav").click();
+  await checkPanels(true, true);
   await page.setViewportSize({ width: 390, height: 844 });
-  assert.equal(await page.locator("#toggleSidebar").isVisible(), true);
+  for (const id of ["toggleSidebar", "toggleOutline"])
+    assert.equal(await page.locator("#" + id).isVisible(), true);
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
     true,
   );
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "yeobaek-ui",
+      JSON.stringify({ sidebarCollapsed: true }),
+    ),
+  );
+  await page.reload();
+  await checkPanels(false, false);
+  await page.locator("#toggleOutline").click();
+  await checkPanels(false, true);
+  await page.reload();
+  await checkPanels(false, true);
   await context.close();
 });
 
@@ -564,6 +612,13 @@ test("typewriter mode centers first/middle/last lines, follows typing, and stops
   const text = Array.from({ length: 70 }, () => "짧은 줄").join("\n");
   await page.locator("#editor").fill(text);
   await page.locator("#typewriter").click();
+  assert.equal(
+    await page
+      .locator("#editor")
+      .evaluate((el) => getComputedStyle(el).outlineStyle),
+    "none",
+    "active writing has no enclosing textarea frame",
+  );
   for (const position of [0, 100, text.length]) {
     await moveCaret(page, position);
     assert.ok(

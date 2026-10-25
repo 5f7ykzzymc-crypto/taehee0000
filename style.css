@@ -1,4 +1,5 @@
 :root {
+  --library-width: 220px;
   --bg: #fffefa;
   --side: #f3f3ee;
   --second: #faf9f5;
@@ -93,7 +94,7 @@ button {
   padding: 5px;
 }
 .library {
-  width: 220px;
+  width: var(--library-width);
   flex-shrink: 0;
   background: var(--side);
   border-right: 1px solid var(--line);
@@ -520,6 +521,9 @@ textarea {
   resize: none;
   overflow: hidden;
 }
+#editor:focus-visible {
+  outline: none;
+}
 textarea::placeholder,
 input::placeholder {
   color: var(--muted);
@@ -537,12 +541,6 @@ input::placeholder {
   width: 15px;
   height: 15px;
 }
-.references {
-  margin-top: 16px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-.references-heading,
 .field-heading {
   display: flex;
   flex-wrap: wrap;
@@ -552,7 +550,6 @@ input::placeholder {
   gap: 10px;
   margin-bottom: 10px;
 }
-.references h2,
 .field-heading h2 {
   display: flex;
   align-items: center;
@@ -560,16 +557,6 @@ input::placeholder {
   font-size: 11px;
   font-weight: 600;
   margin: 0;
-}
-.references h2 svg {
-  width: 15px;
-  height: 15px;
-  color: var(--muted);
-}
-.references h2 small {
-  font: 10px sans-serif;
-  color: var(--muted);
-  margin-left: 3px;
 }
 .upload-button {
   display: inline-flex;
@@ -633,7 +620,10 @@ input::placeholder {
 .image-gallery:not(:empty) {
   margin-bottom: 6px;
 }
-.references.dragging,
+.scene-images:not([hidden]) {
+  margin-top: 16px;
+}
+.writing-view.dragging,
 .character-visual.dragging {
   outline: 1px dashed var(--accent);
   outline-offset: 5px;
@@ -934,8 +924,8 @@ dialog::backdrop {
   }
 }
 @media (max-width: 1200px) {
-  .library {
-    width: 215px;
+  :root {
+    --library-width: 215px;
   }
   .outline {
     width: 190px;
@@ -961,7 +951,17 @@ dialog::backdrop {
 }
 @media (max-width: 1000px) {
   .outline {
-    display: none;
+    position: fixed;
+    z-index: 5;
+    left: var(--library-width);
+    top: 58px;
+    bottom: 34px;
+    width: min(220px, calc(100vw - var(--library-width)));
+    box-shadow: var(--shadow);
+  }
+  .sidebar-collapsed .outline {
+    left: 0;
+    width: min(220px, 100vw);
   }
   .character-page-heading {
     align-items: flex-start;
@@ -971,8 +971,13 @@ dialog::backdrop {
   }
 }
 @media (max-width: 760px) {
+  :root {
+    --library-width: 185px;
+  }
+  .outline {
+    top: 55px;
+  }
   .library {
-    width: 185px;
     padding: 20px 12px 0;
   }
   .brand {
@@ -1059,8 +1064,10 @@ dialog::backdrop {
   }
 }
 @media (max-width: 520px) {
+  :root {
+    --library-width: 145px;
+  }
   .library {
-    width: 145px;
     padding: 20px 9px 0;
   }
   .brand {
@@ -1144,14 +1151,6 @@ dialog::backdrop {
   #subtitle {
     font-size: 11px;
   }
-  .references-heading {
-    align-items: flex-start;
-    gap: 6px;
-  }
-  .references h2 {
-    font-size: 10px;
-    gap: 4px;
-  }
   .upload-button {
     font-size: 9px;
     padding: 6px;
@@ -1209,13 +1208,29 @@ dialog::backdrop {
   gap: 14px;
   min-width: 0;
 }
-.header-left > .icon-button {
+.panel-toggles {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.panel-toggles > .icon-button {
   flex-shrink: 0;
   color: var(--muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+}
+.panel-toggles > .icon-button[aria-expanded="true"] {
+  background: var(--soft);
+  color: var(--accent);
 }
 .sidebar-collapsed .library,
-.sidebar-collapsed .outline,
-.focus #toggleSidebar {
+.outline-collapsed .outline,
+.focus .panel-toggles {
   display: none;
 }
 :root:fullscreen {
@@ -1230,6 +1245,22 @@ dialog::backdrop {
   }
   .header-left {
     gap: 0;
+  }
+  .panel-toggles {
+    padding: 1px;
+    gap: 1px;
+  }
+  .panel-toggles > .icon-button {
+    width: 23px;
+    height: 26px;
+    padding: 3px;
+  }
+  header {
+    padding: 0 7px;
+  }
+  .tools button,
+  .tools #export {
+    padding: 4px;
   }
 }
 @media (max-width: 520px) {
