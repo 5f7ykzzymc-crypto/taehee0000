@@ -134,6 +134,220 @@ async function restore(page, data, confirm = true) {
   });
   if (confirm) await page.locator("#confirmAction").click();
 }
+function outlineFixture() {
+  return {
+    version: 2,
+    workspaceName: "순서 작업실",
+    episodes: ["A", "B", "C"].map((name) => ({
+      title: name + " 에피소드",
+      subtitle: name + " 소개",
+      scenes: [1, 2, 3].map((number) => ({
+        title: name + "-" + number,
+        text: name + "-" + number + " 보존할 원고",
+        images: [],
+      })),
+    })),
+    characters: [],
+  };
+}
+async function dragOutlineAfter(page, sourceList, from, targetList, to) {
+  const source = page
+    .locator(`#${sourceList} .outline-row`)
+    .nth(from)
+    .locator(".drag-handle");
+  const target = page.locator(`#${targetList} .outline-row`).nth(to);
+  const box = await target.boundingBox();
+  assert.ok(box, "the drop target is visible");
+  await source.dragTo(target, {
+    targetPosition: { x: box.width / 2, y: box.height - 3 },
+  });
+}
+async function outlineTitles(page, list) {
+  return page.locator(`#${list} .outline-row strong`).allTextContents();
+}
+async function clickOutlineDelete(page, list, index = 0) {
+  const row = page.locator(`#${list} .outline-row`).nth(index);
+  await row.hover();
+  await row.locator(".delete-entry").click();
+}
+test("native episode and scene dragging keeps the active manuscript and images, persists order, and supports keyboard moves", async () => {
+  const { context, page } = await fresh();
+  await restore(page, outlineFixture());
+  await page.locator("#scenes .scene").nth(1).click();
+  await pasteSceneImage(context, page);
+  await page.locator("#editor").evaluate((editor) => {
+    editor.focus();
+    editor.setSelectionRange(2, 5);
+  });
+  await dragOutlineAfter(page, "items", 0, "items", 2);
+  assert.deepEqual(await outlineTitles(page, "items"), [
+    "B 에피소드",
+    "C 에피소드",
+    "A 에피소드",
+  ]);
+  assert.equal(await page.locator("#epnum").textContent(), "03");
+  assert.equal(await page.locator("#sceneNumber").textContent(), "SCENE 02");
+  assert.equal(await page.locator("#editor").inputValue(), "A-2 보존할 원고");
+  assert.equal(await page.locator("#sceneImages .image-card").count(), 1);
+  assert.deepEqual(
+    await page
+      .locator("#editor")
+      .evaluate((editor) => [editor.selectionStart, editor.selectionEnd]),
+    [2, 5],
+  );
+  await dragOutlineAfter(page, "items", 2, "scenes", 2);
+  assert.deepEqual(await outlineTitles(page, "items"), [
+    "B 에피소드",
+    "C 에피소드",
+    "A 에피소드",
+  ]);
+  assert.deepEqual(await outlineTitles(page, "scenes"), ["A-1", "A-2", "A-3"]);
+  await dragOutlineAfter(page, "scenes", 1, "scenes", 2);
+  assert.deepEqual(await outlineTitles(page, "scenes"), ["A-1", "A-3", "A-2"]);
+  assert.equal(await page.locator("#sceneNumber").textContent(), "SCENE 03");
+  assert.equal(await page.locator("#editor").inputValue(), "A-2 보존할 원고");
+  assert.equal(await page.locator("#sceneImages .image-card").count(), 1);
+  await page.locator("#scenes .drag-handle").nth(2).press("ArrowUp");
+  await page.locator("#items .drag-handle").nth(2).press("ArrowUp");
+  assert.deepEqual(await outlineTitles(page, "items"), [
+    "B 에피소드",
+    "A 에피소드",
+    "C 에피소드",
+  ]);
+  assert.deepEqual(await outlineTitles(page, "scenes"), ["A-1", "A-2", "A-3"]);
+  assert.equal(await page.locator("#epnum").textContent(), "02");
+  assert.equal(await page.locator("#sceneNumber").textContent(), "SCENE 02");
+  const saved = await backup(page);
+  assert.deepEqual(
+    saved.episodes.map((episode) => episode.title),
+    ["B 에피소드", "A 에피소드", "C 에피소드"],
+  );
+  assert.equal(saved.episodes[1].scenes[1].images.length, 1);
+  await page.reload();
+  assert.deepEqual(await outlineTitles(page, "items"), [
+    "B 에피소드",
+    "A 에피소드",
+    "C 에피소드",
+  ]);
+  await page.locator("#items .item").nth(1).click();
+  await page.locator("#scenes .scene").nth(1).click();
+  assert.equal(await page.locator("#editor").inputValue(), "A-2 보존할 원고");
+  assert.equal(await page.locator("#sceneImages .image-card").count(), 1);
+  await context.close();
+});
+test("episode and scene deletion confirms intent, keeps surviving selection, resets the last entry, and leaves other works intact", async () => {
+  const { context, page } = await fresh();
+  await restore(page, outlineFixture());
+  const firstId = await page.locator("#workSelect").inputValue();
+  const secondId = await createWork(page, "다른 작품");
+  await page.locator("#editor").fill("다른 작품에 남겨 둘 원고");
+  await makeCharacter(page, "다른 작품의 인물");
+  const otherWork = (await fullBackup(page)).works.find(
+    (work) => work.id === secondId,
+  );
+  await page.locator("#workSelect").selectOption(firstId);
+  await page.locator("#items .item").nth(1).click();
+  await page.locator("#scenes .scene").nth(1).click();
+  await clickOutlineDelete(page, "items");
+  assert.equal(
+    await page.locator("#confirmTitle").textContent(),
+    "에피소드 삭제",
+  );
+  await page.locator("#confirmCancel").click();
+  assert.equal(await page.locator("#items .item").count(), 3);
+  assert.equal(await page.locator("#editor").inputValue(), "B-2 보존할 원고");
+  await clickOutlineDelete(page, "items");
+  await page.locator("#confirmAction").click();
+  assert.deepEqual(await outlineTitles(page, "items"), [
+    "B 에피소드",
+    "C 에피소드",
+  ]);
+  assert.equal(await page.locator("#epnum").textContent(), "01");
+  assert.equal(await page.locator("#sceneNumber").textContent(), "SCENE 02");
+  assert.equal(await page.locator("#editor").inputValue(), "B-2 보존할 원고");
+  await clickOutlineDelete(page, "items");
+  await page.locator("#confirmAction").click();
+  assert.equal(await page.locator("#editor").inputValue(), "C-1 보존할 원고");
+  await pasteSceneImage(context, page);
+  await page.locator("#scenes .scene").nth(1).click();
+  await clickOutlineDelete(page, "scenes");
+  assert.equal(await page.locator("#confirmTitle").textContent(), "장면 삭제");
+  await page.locator("#confirmCancel").click();
+  assert.equal(await page.locator("#scenes .scene").count(), 3);
+  await clickOutlineDelete(page, "scenes");
+  await page.locator("#confirmAction").click();
+  assert.deepEqual(await outlineTitles(page, "scenes"), ["C-2", "C-3"]);
+  assert.equal(await page.locator("#editor").inputValue(), "C-2 보존할 원고");
+  assert.equal(await page.locator("#sceneNumber").textContent(), "SCENE 01");
+  assert.equal(await page.locator("#sceneImages .image-card").count(), 0);
+  await clickOutlineDelete(page, "scenes");
+  await page.locator("#confirmAction").click();
+  assert.equal(await page.locator("#editor").inputValue(), "C-3 보존할 원고");
+  await clickOutlineDelete(page, "scenes");
+  await page.locator("#confirmAction").click();
+  assert.equal(await page.locator("#scenes .scene").count(), 1);
+  assert.equal(await page.locator("#sceneTitle").inputValue(), "첫 번째 장면");
+  assert.equal(await page.locator("#editor").inputValue(), "");
+  await clickOutlineDelete(page, "items");
+  await page.locator("#confirmAction").click();
+  assert.equal(await page.locator("#items .item").count(), 1);
+  assert.equal(await page.locator("#title").inputValue(), "첫 번째 에피소드");
+  assert.equal(await page.locator("#editor").inputValue(), "");
+  const all = await fullBackup(page);
+  assert.deepEqual(
+    all.works.find((work) => work.id === secondId),
+    otherWork,
+  );
+  assert.equal(
+    all.works.find((work) => work.id === firstId).project.episodes[0].scenes[0]
+      .images.length,
+    0,
+  );
+  await page.reload();
+  assert.equal(await page.locator("#items .item").count(), 1);
+  assert.equal(await page.locator("#scenes .scene").count(), 1);
+  assert.equal(await page.locator("#editor").inputValue(), "");
+  await context.close();
+});
+test("failed outline reorder and deletion roll back order and selection without dropping unsaved text", async () => {
+  const { context, page } = await fresh();
+  await restore(page, outlineFixture());
+  await page.locator("#items .item").nth(1).click();
+  await page.locator("#scenes .scene").nth(1).click();
+  await page.evaluate(() => {
+    Storage.prototype.setItem = function () {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    };
+  });
+  await page.locator("#editor").fill("저장 실패해도 남겨야 하는 원고");
+  await page.locator("#items .drag-handle").nth(1).press("ArrowUp");
+  await page.locator("#scenes .drag-handle").nth(1).press("ArrowUp");
+  assert.deepEqual(await outlineTitles(page, "items"), [
+    "A 에피소드",
+    "B 에피소드",
+    "C 에피소드",
+  ]);
+  assert.deepEqual(await outlineTitles(page, "scenes"), ["B-1", "B-2", "B-3"]);
+  for (const list of ["items", "scenes"]) {
+    await clickOutlineDelete(page, list, 1);
+    await page.locator("#confirmAction").click();
+    assert.equal(await page.locator("#epnum").textContent(), "02");
+    assert.equal(await page.locator("#sceneNumber").textContent(), "SCENE 02");
+    assert.equal(
+      await page.locator("#editor").inputValue(),
+      "저장 실패해도 남겨야 하는 원고",
+    );
+  }
+  const saved = await backup(page);
+  assert.equal(saved.episodes.length, 3);
+  assert.equal(saved.episodes[1].scenes.length, 3);
+  assert.equal(
+    saved.episodes[1].scenes[1].text,
+    "저장 실패해도 남겨야 하는 원고",
+  );
+  assert.equal(await page.locator("#saved").textContent(), "저장되지 않음");
+  await context.close();
+});
 test("existing v2 data migrates into one work with every scene, character, image and workspace name intact", async () => {
   const { context, page } = await fresh();
   await page.locator("#title").fill("보존할 작품의 첫 화");

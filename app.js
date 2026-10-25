@@ -46,6 +46,8 @@ const icons = {
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M16 4a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   focus: "M8 3H3v5 M16 3h5v5 M21 16v5h-5 M8 21H3v-5",
   plus: "M12 5v14 M5 12h14",
+  grip: "M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01",
+  trash: "M4 7h16 M9 7V4h6v3 M6 7l1 14h10l1-14 M10 11v6 M14 11v6",
   moon: "M21 13a9 9 0 0 1-10-10 9 9 0 1 0 10 10",
   export: "M12 16V3 M7 8l5-5 5 5 M4 14v7h16v-7",
   image: "M3 3h18v18H3z M3 16l5-5 5 5 3-3 5 5 M16 8h.01",
@@ -368,6 +370,312 @@ function counts() {
   }
   typewriterController?.sync();
 }
+function moveOutlineEntry(kind, entry, target, after = false) {
+  if (view !== "writing" || !["episode", "scene"].includes(kind)) return false;
+  const selectedEpisode = project.episodes[ep],
+    selectedScene = selectedEpisode.scenes[scene],
+    owner = kind === "episode" ? project : selectedEpisode,
+    property = kind === "episode" ? "episodes" : "scenes",
+    previous = owner[property];
+  if (
+    !previous.includes(entry) ||
+    target === entry ||
+    (target !== null && !previous.includes(target))
+  )
+    return false;
+  const next = previous.filter((candidate) => candidate !== entry);
+  const destination =
+    target === null ? next.length : next.indexOf(target) + (after ? 1 : 0);
+  next.splice(destination, 0, entry);
+  if (next.every((candidate, index) => candidate === previous[index]))
+    return false;
+  const previousEp = ep,
+    previousScene = scene;
+  owner[property] = next;
+  ep = project.episodes.indexOf(selectedEpisode);
+  scene = selectedEpisode.scenes.indexOf(selectedScene);
+  if (!persist()) {
+    owner[property] = previous;
+    ep = previousEp;
+    scene = previousScene;
+    return false;
+  }
+  refreshOutlineView(selectedScene);
+  return true;
+}
+async function deleteOutlineEntry(kind, entry) {
+  if (view !== "writing" || !["episode", "scene"].includes(kind)) return false;
+  if (imageBusy) {
+    toast("이미지를 처리하고 있습니다. 완료된 뒤 삭제해 주세요.");
+    return false;
+  }
+  const requestedGeneration = generation,
+    requestedWorkId = library.activeWorkId,
+    requestedProject = project,
+    owner = kind === "episode" ? project : project.episodes[ep],
+    property = kind === "episode" ? "episodes" : "scenes";
+  if (!owner[property].includes(entry)) return false;
+  const isEpisode = kind === "episode",
+    label = isEpisode ? "에피소드" : "장면",
+    last = owner[property].length === 1,
+    imageCount = isEpisode
+      ? entry.scenes.reduce((count, item) => count + item.images.length, 0)
+      : entry.images.length;
+  const message =
+    `‘${entry.title || "제목 없는 " + label}’을 삭제할까요?\n` +
+    (isEpisode ? `포함된 장면 ${entry.scenes.length}개와 ` : "") +
+    `원고, 이미지 ${imageCount}장도 함께 삭제됩니다.` +
+    (last
+      ? isEpisode
+        ? "\n마지막 에피소드를 삭제하면 빈 에피소드와 장면 하나를 남깁니다."
+        : "\n마지막 장면을 삭제하면 빈 장면 하나를 남깁니다."
+      : "");
+  if (!(await confirmAction(label + " 삭제", message, "삭제"))) return false;
+  if (
+    generation !== requestedGeneration ||
+    library.activeWorkId !== requestedWorkId ||
+    project !== requestedProject ||
+    view !== "writing" ||
+    (!isEpisode && project.episodes[ep] !== owner) ||
+    !owner[property].includes(entry)
+  )
+    return false;
+  if (imageBusy) {
+    toast("이미지를 처리하고 있습니다. 완료된 뒤 삭제해 주세요.");
+    return false;
+  }
+  const previous = owner[property],
+    previousEp = ep,
+    previousScene = scene,
+    selectedEpisode = project.episodes[ep],
+    selectedScene = selectedEpisode.scenes[scene],
+    deletedIndex = previous.indexOf(entry);
+  const next = previous.filter((candidate) => candidate !== entry);
+  if (!next.length) {
+    const blankScene = { title: "첫 번째 장면", text: "", images: [] };
+    next.push(
+      isEpisode
+        ? { title: "첫 번째 에피소드", subtitle: "", scenes: [blankScene] }
+        : blankScene,
+    );
+  }
+  owner[property] = next;
+  if (isEpisode) {
+    const retainedIndex = next.indexOf(selectedEpisode);
+    ep =
+      retainedIndex >= 0
+        ? retainedIndex
+        : Math.min(deletedIndex, next.length - 1);
+    scene =
+      retainedIndex >= 0 ? selectedEpisode.scenes.indexOf(selectedScene) : 0;
+  } else {
+    const retainedIndex = next.indexOf(selectedScene);
+    scene =
+      retainedIndex >= 0
+        ? retainedIndex
+        : Math.min(deletedIndex, next.length - 1);
+  }
+  if (!persist()) {
+    owner[property] = previous;
+    ep = previousEp;
+    scene = previousScene;
+    return false;
+  }
+  refreshOutlineView(selectedScene);
+  toast(isEpisode ? "에피소드를 삭제했습니다." : "장면을 삭제했습니다.");
+  return true;
+}
+const outlineRows = new WeakMap();
+let outlineDrag = null,
+  dropMarker = null;
+function clearOutlineDrag() {
+  document
+    .querySelectorAll(".drag-source")
+    .forEach((row) => row.classList.remove("drag-source"));
+  dropMarker?.classList.remove("drop-before", "drop-after");
+  dropMarker = null;
+  outlineDrag = null;
+}
+function validOutlineDrag(kind) {
+  return (
+    outlineDrag &&
+    view === "writing" &&
+    outlineDrag.kind === kind &&
+    outlineDrag.project === project &&
+    outlineDrag.workId === library.activeWorkId &&
+    outlineDrag.generation === generation &&
+    (kind === "episode" || outlineDrag.episode === project.episodes[ep])
+  );
+}
+function makeOutlineRow(kind, entry, button) {
+  const name = kind === "episode" ? "에피소드" : "장면";
+  const row = element("div", "outline-row " + kind + "-row");
+  row.dataset.kind = kind;
+  row.draggable = true;
+  outlineRows.set(row, { kind, entry });
+  const actions = element("div", "row-controls");
+  const handle = element("button", "drag-handle");
+  handle.type = "button";
+  handle.draggable = true;
+  handle.append(icon("grip"));
+  handle.setAttribute(
+    "aria-label",
+    name + " ‘" + (entry.title || "제목 없음") + "’ 순서 이동",
+  );
+  handle.setAttribute("aria-description", "드래그하거나 위·아래 방향키로 이동");
+  handle.title = "드래그 또는 위·아래 방향키로 순서 이동";
+  handle.onkeydown = (event) => {
+    if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const entries =
+      kind === "episode" ? project.episodes : project.episodes[ep].scenes;
+    const index = entries.indexOf(entry);
+    if (index < 0) return;
+    if (event.key === "ArrowUp" && index > 0)
+      moveOutlineEntry(kind, entry, entries[index - 1]);
+    else if (event.key === "ArrowDown" && index < entries.length - 1)
+      moveOutlineEntry(kind, entry, entries[index + 1], true);
+    else if (event.key === "Home") moveOutlineEntry(kind, entry, entries[0]);
+    else if (event.key === "End") moveOutlineEntry(kind, entry, null);
+  };
+  const remove = element("button", "delete-entry");
+  remove.type = "button";
+  remove.append(icon("trash"));
+  remove.setAttribute(
+    "aria-label",
+    name + " ‘" + (entry.title || "제목 없음") + "’ 삭제",
+  );
+  remove.title = name + " 삭제";
+  remove.onclick = () => deleteOutlineEntry(kind, entry);
+  actions.append(handle, remove);
+  row.append(button, actions);
+  row.ondragstart = (event) => {
+    if (
+      document.querySelector("dialog[open]") ||
+      event.target.closest(".delete-entry")
+    ) {
+      event.preventDefault();
+      return;
+    }
+    clearOutlineDrag();
+    outlineDrag = {
+      kind,
+      entry,
+      project,
+      workId: library.activeWorkId,
+      generation,
+      episode: project.episodes[ep],
+    };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-yeobaek-outline", kind);
+    const rect = row.getBoundingClientRect();
+    event.dataTransfer.setDragImage(
+      row,
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    );
+    row.classList.add("drag-source");
+  };
+  row.ondragend = clearOutlineDrag;
+  return row;
+}
+function refreshOutlineView(previousScene) {
+  const editor = $("editor"),
+    scroller = $("documentScroll"),
+    focused = document.activeElement;
+  const focusedRow = focused?.closest?.(".outline-row");
+  const context = focusedRow && outlineRows.get(focusedRow);
+  const action = focused?.classList.contains("drag-handle")
+    ? ".drag-handle"
+    : focused?.classList.contains("delete-entry")
+      ? ".delete-entry"
+      : context?.kind === "episode"
+        ? ".item"
+        : ".scene";
+  const wasEditing = focused === editor;
+  const selection = [
+    editor.selectionStart,
+    editor.selectionEnd,
+    editor.selectionDirection,
+  ];
+  const sameScene = previousScene === currentScene();
+  const scrollTop = scroller.scrollTop;
+  render({ preserveEditor: sameScene });
+  if (sameScene) editor.setSelectionRange(...selection);
+  if (wasEditing) editor.focus({ preventScroll: true });
+  else if (context) {
+    const rows = [
+      ...document.querySelectorAll(
+        context.kind === "episode" ? ".episode-row" : ".scene-row",
+      ),
+    ];
+    const matching = rows.find(
+      (row) => outlineRows.get(row)?.entry === context.entry,
+    );
+    const next =
+      matching?.querySelector(action) ||
+      document.querySelector(
+        context.kind === "episode" ? "#items .current" : "#scenes .current",
+      );
+    next?.focus({ preventScroll: true });
+  }
+  scroller.scrollTop = sameScene ? scrollTop : 0;
+}
+["episode", "scene"].forEach((kind) => {
+  const list = $(kind === "episode" ? "items" : "scenes");
+  const zone = kind === "episode" ? list.parentElement : $("outline");
+  const destination = (y) => {
+    const rows = [...list.querySelectorAll(".outline-row")];
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (y < rect.bottom)
+        return {
+          row,
+          entry: outlineRows.get(row).entry,
+          after: y >= rect.top + rect.height / 2,
+        };
+    }
+    const row = rows.at(-1);
+    return row ? { row, entry: outlineRows.get(row).entry, after: true } : null;
+  };
+  zone.addEventListener("dragover", (event) => {
+    if (!validOutlineDrag(kind)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const target = destination(event.clientY);
+    dropMarker?.classList.remove("drop-before", "drop-after");
+    dropMarker = target?.row || null;
+    if (target && target.entry !== outlineDrag.entry)
+      target.row.classList.add(target.after ? "drop-after" : "drop-before");
+    const rect = zone.getBoundingClientRect();
+    if (event.clientY < rect.top + 30) zone.scrollTop -= 12;
+    else if (event.clientY > rect.bottom - 30) zone.scrollTop += 12;
+  });
+  zone.addEventListener("dragleave", (event) => {
+    if (!zone.contains(event.relatedTarget)) {
+      dropMarker?.classList.remove("drop-before", "drop-after");
+      dropMarker = null;
+    }
+  });
+  zone.addEventListener("drop", (event) => {
+    if (!validOutlineDrag(kind)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const source = outlineDrag.entry,
+      target = destination(event.clientY);
+    clearOutlineDrag();
+    if (target) moveOutlineEntry(kind, source, target.entry, target.after);
+  });
+});
+document.addEventListener("drop", (event) => {
+  if (!outlineDrag) return;
+  event.preventDefault();
+  clearOutlineDrag();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") clearOutlineDrag();
+});
+window.addEventListener("blur", clearOutlineDrag);
 function renderItems() {
   $("items").replaceChildren();
   const entries = view === "writing" ? project.episodes : project.characters;
@@ -415,7 +723,9 @@ function renderItems() {
       render();
       $("documentScroll").scrollTop = 0;
     };
-    $("items").append(button);
+    $("items").append(
+      view === "writing" ? makeOutlineRow("episode", entry, button) : button,
+    );
   });
   $("total").textContent = project.episodes.length;
   $("characterTotal").textContent = project.characters.length;
@@ -438,7 +748,7 @@ function renderScenes() {
       render();
       $("documentScroll").scrollTop = 0;
     };
-    $("scenes").append(button);
+    $("scenes").append(makeOutlineRow("scene", entry, button));
   });
   $("sceneCount").textContent =
     project.episodes[ep].scenes.length + "개의 장면";
@@ -497,7 +807,7 @@ function renderImages(kind) {
     container.hidden = images.length === 0;
   }
 }
-function render() {
+function render({ preserveEditor = false } = {}) {
   renderWorks();
   renderWorkspaceName();
   updateTypewriterButton();
@@ -536,7 +846,8 @@ function render() {
     $("sceneNumber").textContent =
       "SCENE " + String(scene + 1).padStart(2, "0");
     $("sceneTitle").value = currentScene().title;
-    $("editor").value = currentScene().text;
+    if (!preserveEditor || $("editor").value !== currentScene().text)
+      $("editor").value = currentScene().text;
     renderScenes();
     renderImages("scene");
   } else {

@@ -400,6 +400,87 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.outline-row {
+  position: relative;
+  display: flow-root;
+  min-width: 0;
+  border-radius: 8px;
+}
+.outline-row > .item,
+.outline-row > .scene {
+  padding-right: 30px;
+}
+.row-controls {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.row-controls button {
+  width: 22px;
+  height: 22px;
+  padding: 4px;
+  color: var(--muted);
+  border-radius: 5px;
+  line-height: 1;
+}
+.row-controls svg {
+  width: 14px;
+  height: 14px;
+}
+.drag-handle {
+  cursor: grab;
+  opacity: 0.55;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.delete-entry {
+  opacity: 0;
+  pointer-events: none;
+}
+.outline-row:hover .drag-handle,
+.outline-row:focus-within .drag-handle,
+.outline-row:hover .delete-entry,
+.outline-row:focus-within .delete-entry {
+  opacity: 1;
+  pointer-events: auto;
+}
+.row-controls .delete-entry:hover,
+.row-controls .delete-entry:focus-visible {
+  color: var(--danger);
+}
+.outline-row.drag-source {
+  opacity: 0.45;
+}
+.outline-row.drop-before::before,
+.outline-row.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 1;
+}
+.outline-row.drop-before::before {
+  top: 0;
+}
+.outline-row.drop-after::after {
+  bottom: 1px;
+}
+@media (hover: none), (pointer: coarse) {
+  .outline-row .drag-handle,
+  .outline-row .delete-entry {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
 .add-scene {
   font-size: 11px;
   color: var(--muted);
