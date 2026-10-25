@@ -337,14 +337,6 @@ function renderItems() {
     };
     $("items").append(button);
   });
-  if (!entries.length)
-    $("items").append(
-      element(
-        "p",
-        "empty-list",
-        "새 캐릭터를 추가하고 인물의 이야기를 기록해 보세요.",
-      ),
-    );
   $("total").textContent = project.episodes.length;
   $("characterTotal").textContent = project.characters.length;
 }
@@ -359,7 +351,7 @@ function renderScenes() {
     button.append(
       element("small", "", "SCENE " + String(index + 1).padStart(2, "0")),
       element("strong", "", entry.title || "장면 제목"),
-      element("p", "", entry.text.slice(0, 45) || "아직 쓰지 않은 이야기"),
+      element("p", "", entry.text.slice(0, 45)),
     );
     button.onclick = () => {
       scene = index;
@@ -376,6 +368,10 @@ function renderImages(kind) {
   const container = $(kind === "character" ? "characterImages" : "sceneImages");
   container.replaceChildren();
   const images = target?.images || [];
+  if (kind === "character")
+    document
+      .querySelector(".character-layout")
+      .classList.toggle("has-images", images.length > 0);
   images.forEach((image, index) => {
     const figure = element("figure", "image-card");
     const open = element("button", "image-open");
@@ -417,8 +413,7 @@ function renderImages(kind) {
   $(
     kind === "character" ? "characterImageCount" : "sceneImageCount",
   ).textContent = kind === "character" ? images.length + " / 6" : images.length;
-  const zone = $(kind === "character" ? "characterDropzone" : "sceneDropzone");
-  zone.hidden = images.length >= 6;
+  $(kind + "AddImage").disabled = images.length >= 6;
 }
 function render() {
   renderWorkspaceName();
@@ -447,9 +442,6 @@ function render() {
     isWriting ? "에피소드 추가" : "캐릭터 추가",
   );
   $("categoryCrumb").textContent = isWriting ? "글쓰기" : "캐릭터 시트";
-  $("footerMessage").textContent = isWriting
-    ? "모든 이야기는 한 문장에서 시작됩니다."
-    : "입체적인 인물이 이야기를 움직입니다.";
   renderItems();
   if (isWriting) {
     const entry = project.episodes[ep];
@@ -494,6 +486,13 @@ $("title").oninput = () => {
   $("crumb").textContent = $("title").value;
   persist();
   renderItems();
+};
+$("toggleEpisodeDetails").onclick = () => {
+  const show = $("episodeDetails").hidden;
+  $("episodeDetails").hidden = !show;
+  $("toggleEpisodeDetails").setAttribute("aria-expanded", String(show));
+  if (show) $("subtitle").focus();
+  typewriterController?.sync();
 };
 $("subtitle").oninput = () => {
   project.episodes[ep].subtitle = $("subtitle").value;
@@ -1021,23 +1020,21 @@ async function addImages(files, kind) {
 }
 ["scene", "character"].forEach((kind) => {
   const input = $(kind + "ImageInput"),
-    zone = $(kind + "Dropzone");
+    zone = document.querySelector(
+      kind === "scene" ? ".references" : ".character-visual",
+    );
+  $(kind + "AddImage").onclick = () => input.click();
   input.onchange = (event) => {
     addImages(event.target.files, kind);
     input.value = "";
-  };
-  zone.onclick = () => input.click();
-  zone.onkeydown = (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      input.click();
-    }
   };
   zone.addEventListener("dragover", (event) => {
     event.preventDefault();
     zone.classList.add("dragging");
   });
-  zone.addEventListener("dragleave", () => zone.classList.remove("dragging"));
+  zone.addEventListener("dragleave", (event) => {
+    if (!zone.contains(event.relatedTarget)) zone.classList.remove("dragging");
+  });
   zone.addEventListener("drop", (event) => {
     event.preventDefault();
     zone.classList.remove("dragging");

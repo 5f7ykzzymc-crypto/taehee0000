@@ -91,6 +91,10 @@
       mirror.style.width = style.width;
       const lineHeight =
         parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+      // The editor uses unitless leading. Keeping that ratio also preserves the
+      // browser's subpixel rounding; copying its computed pixel value can make
+      // the mirror drift by several pixels over a long wrapped scene.
+      mirror.style.lineHeight = String(lineHeight / parseFloat(style.fontSize));
       const paddingTop = parseFloat(style.paddingTop) || 0;
       const borderTop = parseFloat(style.borderTopWidth) || 0;
       const marker = document.createElement("span");
@@ -111,16 +115,11 @@
       // identifies the active line, including a caret immediately before a newline.
       const fragment =
         marker.getClientRects()[0] || marker.getBoundingClientRect();
-      const row = Math.max(
-        0,
-        Math.round((fragment.top - firstGlyphTop) / lineHeight),
-      );
+      // Use the browser's measured line-box displacement. Multiplying a row
+      // count by nominal line-height accumulates subpixel rounding on long text.
+      const lineOffset = Math.max(0, fragment.top - firstGlyphTop);
       return (
-        borderTop +
-        paddingTop +
-        row * lineHeight +
-        lineHeight / 2 -
-        editor.scrollTop
+        borderTop + paddingTop + lineOffset + lineHeight / 2 - editor.scrollTop
       );
     }
 

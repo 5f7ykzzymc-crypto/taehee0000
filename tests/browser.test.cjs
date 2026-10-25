@@ -68,9 +68,9 @@ async function makeCharacter(page, name = "서연") {
 }
 async function upload(page, kind = "character", name = "인물.png") {
   const before = await page.locator(`#${kind}Images .image-card`).count();
-  await page
-    .locator(`#${kind}ImageInput`)
-    .setInputFiles({ name, mimeType: "image/png", buffer: png });
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator(`#${kind}AddImage`).click();
+  await (await chooser).setFiles({ name, mimeType: "image/png", buffer: png });
   await page.waitForFunction(
     ({ kind, before }) =>
       document.querySelectorAll(`#${kind}Images .image-card`).length ===
@@ -106,10 +106,17 @@ test("existing v1 draft migrates without losing scenes, and edits persist after 
   );
   await page.reload();
   assert.equal(await page.locator("#editor").inputValue(), "잃으면 안 되는 글");
+  assert.equal(await page.locator("#episodeDetails").isVisible(), false);
+  await page.locator("#toggleEpisodeDetails").click();
+  assert.equal(await page.locator("#subtitle").inputValue(), "원래 소개");
+  await page.locator("#subtitle").fill("고친 소개");
+  await page.locator("#toggleEpisodeDetails").click();
   await page.locator("#editor").fill("고쳐 쓴 원고");
   await page.reload();
   assert.equal(await page.locator("#editor").inputValue(), "고쳐 쓴 원고");
-  assert.equal((await backup(page)).episodes[0].scenes[0].images.length, 0);
+  const saved = await backup(page);
+  assert.equal(saved.episodes[0].scenes[0].images.length, 0);
+  assert.equal(saved.episodes[0].subtitle, "고친 소개");
   await context.close();
 });
 test("character sheets save every field and stay independent from each other", async () => {
@@ -183,9 +190,25 @@ test("image upload, actual clipboard paste, deletion and reload preserve the cor
   assert.equal(await page.locator("#sceneImages .image-card").count(), 0);
   await page.locator("#scenes .scene").first().click();
   assert.equal(await page.locator("#sceneImages .image-card").count(), 1);
+  await page.locator(".references").evaluate((zone, bytes) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(
+      new File([new Uint8Array(bytes)], "드롭.png", { type: "image/png" }),
+    );
+    zone.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+      }),
+    );
+  }, Array.from(png));
+  await page.waitForFunction(
+    () => document.querySelectorAll("#sceneImages .image-card").length === 2,
+  );
   const data = await backup(page);
   assert.match(data.characters[0].images[0].data, /^data:image\/webp;base64,/);
-  assert.equal(data.episodes[0].scenes[0].images.length, 1);
+  assert.equal(data.episodes[0].scenes[0].images.length, 2);
   await context.close();
 });
 test("image limit and unsupported file rejection leave existing images intact", async () => {

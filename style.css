@@ -97,47 +97,17 @@ button {
   flex-shrink: 0;
   background: var(--side);
   border-right: 1px solid var(--line);
-  padding: 24px 14px 0;
+  padding: 18px 14px 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 .brand {
-  font-size: 25px;
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: -1.6px;
+  letter-spacing: -0.6px;
   padding-left: 10px;
-}
-.brand span {
-  display: block;
-  font: 9px sans-serif;
-  letter-spacing: 2px;
-  color: var(--muted);
-  margin-top: 5px;
-  font-size: 8px;
-}
-.project {
-  margin: 20px 0 20px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 11px 10px;
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 1px 2px #27312004;
-}
-.project-icon {
-  color: var(--accent);
-}
-.project small {
-  display: block;
-  font-size: 10px;
-  color: var(--muted);
-  font-weight: 400;
-  margin-top: 4px;
+  margin-bottom: 16px;
 }
 .section-label {
   font-size: 11px;
@@ -372,20 +342,6 @@ button {
   width: 14px;
   height: 14px;
 }
-.note {
-  margin-top: auto;
-  padding: 20px 7px 0;
-  color: var(--muted);
-}
-.note span {
-  font: 9px sans-serif;
-  letter-spacing: 1px;
-}
-.note p {
-  font-size: 10px;
-  line-height: 1.85;
-  margin-top: 8px;
-}
 main {
   flex: 1;
   min-width: 0;
@@ -445,30 +401,10 @@ header {
   scrollbar-gutter: stable;
 }
 .writing-view {
-  max-width: 800px;
-  margin: 30px auto 28px;
-  padding: 0 38px;
-}
-.eyebrow {
-  font: 10px sans-serif;
-  letter-spacing: 2px;
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.status {
-  font:
-    9px -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  letter-spacing: 0;
-  background: var(--soft);
-  color: var(--accent);
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-left: 7px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 16px auto 20px;
+  padding: 0 28px;
 }
 input {
   display: block;
@@ -480,22 +416,55 @@ input {
 #title,
 #characterName {
   font-family: ui-serif, "Noto Serif KR", Batang, serif;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
-  letter-spacing: -1.1px;
-  margin: 13px 0 9px;
-  margin-top: 13px;
+  letter-spacing: -0.5px;
+  line-height: 1.4;
+  margin: 0;
+}
+.episode-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  min-height: 36px;
+}
+.episode-number {
+  flex-shrink: 0;
+  font: 10px/1.4 sans-serif;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+#title {
+  flex: 1;
+  width: auto;
+  padding: 2px 0;
+}
+#toggleEpisodeDetails {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+#toggleEpisodeDetails[aria-expanded="true"] {
+  background: var(--soft);
+  color: var(--accent);
+}
+#episodeDetails {
+  margin: 0 0 10px;
+}
+#episodeDetails input {
+  padding: 7px 9px;
+  background: var(--input);
+  border-radius: 5px;
 }
 #subtitle,
 #characterTagline {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.7;
-}
-.divider {
-  height: 1px;
-  background: var(--line);
-  margin: 21px 0 16px;
 }
 .scene-label {
   display: flex;
@@ -504,7 +473,7 @@ input {
   gap: 10px;
   font-size: 10px;
   color: var(--muted);
-  margin-bottom: 11px;
+  margin-bottom: 8px;
 }
 .scene-label > div:first-child {
   display: flex;
@@ -569,17 +538,19 @@ input::placeholder {
   height: 15px;
 }
 .references {
-  margin-top: 23px;
+  margin-top: 16px;
   border-top: 1px solid var(--line);
-  padding-top: 17px;
+  padding-top: 12px;
 }
 .references-heading,
 .field-heading {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 8px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .references h2,
 .field-heading h2 {
@@ -611,38 +582,6 @@ input::placeholder {
   border-radius: 5px;
   background: var(--bg);
   color: var(--accent);
-}
-.dropzone {
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 18px 14px;
-  text-align: center;
-  color: var(--muted);
-  cursor: pointer;
-  transition: 0.15s;
-}
-.dropzone > [data-icon] {
-  padding: 9px;
-  border-radius: 8px;
-  background: var(--soft);
-  color: var(--accent);
-}
-.dropzone p {
-  font-size: 11px;
-  margin: 9px 0 5px;
-}
-.dropzone small {
-  display: block;
-  font-size: 10px;
-  line-height: 1.8;
-}
-.dropzone .upload-button {
-  margin-top: 12px;
-}
-.dropzone.dragging,
-.dropzone:hover {
-  background: var(--input);
-  border-color: var(--accent);
 }
 .image-gallery {
   display: grid;
@@ -692,22 +631,32 @@ input::placeholder {
   height: 13px;
 }
 .image-gallery:not(:empty) {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
-.end-mark {
-  text-align: center;
+.references.dragging,
+.character-visual.dragging {
+  outline: 1px dashed var(--accent);
+  outline-offset: 5px;
+  border-radius: 6px;
+}
+.image-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.image-actions > span {
+  font-size: 10px;
   color: var(--muted);
-  font-size: 18px;
-  margin: 22px;
 }
 footer {
-  min-height: 45px;
+  min-height: 34px;
   flex-shrink: 0;
   border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 25px;
+  justify-content: flex-end;
+  padding: 0 20px;
   color: var(--muted);
   font-size: 9px;
   gap: 10px;
@@ -738,7 +687,7 @@ footer button {
   display: none;
 }
 .focus .writing-view {
-  max-width: 760px;
+  max-width: 850px;
 }
 .dark {
   --bg: #232621;
@@ -756,27 +705,23 @@ footer button {
 }
 .character-view {
   max-width: 1000px;
-  margin: 30px auto 30px;
-  padding: 0 36px;
+  margin: 16px auto 20px;
+  padding: 0 28px;
 }
 .character-page-heading {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 8px;
   justify-content: space-between;
   gap: 16px;
   align-items: center;
-  margin: 13px 0 21px;
+  margin: 0 0 12px;
 }
 .character-page-heading h1 {
-  font-family: ui-serif, "Noto Serif KR", Batang, serif;
-  font-size: 24px;
-  letter-spacing: -0.8px;
-  font-weight: 500;
-  margin: 0 0 8px;
-}
-.character-page-heading p {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.8;
+  font-size: 16px;
+  letter-spacing: -0.3px;
+  font-weight: 600;
+  line-height: 1.4;
   margin: 0;
 }
 .character-page-heading button {
@@ -784,26 +729,24 @@ footer button {
 }
 .character-intro {
   border-top: 1px solid var(--line);
-  padding: 8px 0 20px;
+  padding: 12px 0 16px;
 }
 #characterName {
-  margin-top: 18px;
-  font-size: 30px;
+  margin: 0 0 7px;
+  font-size: 20px;
 }
 .character-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 0.85fr) minmax(240px, 1.15fr);
-  gap: 26px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
   border-top: 1px solid var(--line);
-  padding: 21px 0;
+  padding: 16px 0;
+}
+.character-layout.has-images {
+  grid-template-columns: minmax(180px, 0.85fr) minmax(240px, 1.15fr);
 }
 .field-heading {
-  margin-bottom: 20px;
-}
-.field-heading > span {
-  font: 8px sans-serif;
-  letter-spacing: 1px;
-  color: var(--muted);
+  margin-bottom: 12px;
 }
 .character-gallery {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -817,12 +760,6 @@ footer button {
 .character-gallery .image-card img {
   height: 120px;
 }
-.image-hint {
-  font-size: 9px;
-  line-height: 1.9;
-  color: var(--muted);
-  margin: 12px 0;
-}
 .profile-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -834,7 +771,6 @@ footer button {
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
-  margin-top: 17px;
 }
 .profile-grid input,
 .field textarea {
@@ -851,20 +787,20 @@ footer button {
     sans-serif;
   letter-spacing: 0;
   line-height: 1.7;
-  min-height: 88px;
 }
 .profile-grid input {
-  height: 38px;
+  height: 36px;
+  min-height: 0;
 }
 .field {
-  margin-top: 22px;
+  margin-top: 16px;
 }
 .field textarea {
-  min-height: 100px;
+  min-height: 84px;
 }
 .character-details {
   border-top: 1px solid var(--line);
-  padding-top: 20px;
+  padding-top: 14px;
 }
 .detail-grid {
   display: grid;
@@ -878,10 +814,10 @@ footer button {
 .sheet-bottom {
   border-top: 1px solid var(--line);
   margin-top: 5px;
-  padding-top: 16px;
+  padding-top: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   font-size: 10px;
   color: var(--muted);
 }
@@ -891,26 +827,7 @@ footer button {
   padding: 9px;
 }
 .character-empty {
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  padding: 36px 20px;
-  text-align: center;
-}
-.character-empty > [data-icon] {
-  color: var(--accent);
-  padding: 17px;
-  background: var(--soft);
-  border-radius: 50%;
-}
-.character-empty h2 {
-  font-size: 17px;
-  font-weight: 500;
-  margin-top: 18px;
-}
-.character-empty p {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.8;
+  padding: 8px 0;
 }
 .primary-button {
   padding: 11px 16px;
@@ -923,7 +840,7 @@ footer button {
   color: var(--bg);
 }
 .character-empty .primary-button {
-  margin-top: 16px;
+  margin-top: 0;
 }
 dialog {
   color: var(--text);
@@ -951,12 +868,6 @@ dialog::backdrop {
   margin: 7px 0 0;
   letter-spacing: -0.45px;
   line-height: 1.35;
-}
-.dialog-description {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 12px 0 10px;
 }
 .image-dialog {
   padding: 40px 12px 12px;
@@ -1019,7 +930,7 @@ dialog::backdrop {
 }
 @media (min-width: 1500px) {
   .writing-view {
-    margin-top: 36px;
+    margin-top: 16px;
   }
 }
 @media (max-width: 1200px) {
@@ -1030,7 +941,7 @@ dialog::backdrop {
     width: 190px;
   }
   .writing-view {
-    padding: 0 35px;
+    padding: 0 24px;
   }
   header {
     padding: 0 20px;
@@ -1056,10 +967,7 @@ dialog::backdrop {
     align-items: flex-start;
   }
   .character-page-heading h1 {
-    font-size: 23px;
-  }
-  .character-page-heading p {
-    max-width: 280px;
+    font-size: 16px;
   }
 }
 @media (max-width: 760px) {
@@ -1068,7 +976,7 @@ dialog::backdrop {
     padding: 20px 12px 0;
   }
   .brand {
-    font-size: 25px;
+    font-size: 18px;
   }
   .section-label > span {
     display: none;
@@ -1077,9 +985,6 @@ dialog::backdrop {
     font-size: 12px;
     padding: 11px 9px;
     gap: 8px;
-  }
-  .project {
-    margin: 18px 0;
   }
   .tools .tool-label {
     display: none;
@@ -1100,21 +1005,19 @@ dialog::backdrop {
     padding: 0 15px;
   }
   .writing-view {
-    padding: 0 25px;
-    margin-top: 25px;
+    padding: 0 20px;
+    margin-top: 16px;
   }
   #title {
-    font-size: 27px;
+    font-size: 20px;
   }
   .character-view {
-    padding: 0 24px;
-    margin-top: 25px;
+    padding: 0 20px;
+    margin-top: 16px;
   }
-  .character-layout {
+  .character-layout,
+  .character-layout.has-images {
     grid-template-columns: 1fr;
-  }
-  .character-visual .dropzone {
-    padding: 20px;
   }
   .character-gallery {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1126,23 +1029,20 @@ dialog::backdrop {
     height: 130px;
   }
   .character-page-heading {
-    display: block;
+    display: flex;
   }
   .character-page-heading button {
-    margin-top: 12px;
+    margin-top: 0;
   }
   .detail-grid {
     grid-template-columns: 1fr;
-  }
-  footer > div:first-child {
-    display: none;
   }
   footer {
     justify-content: flex-end;
     padding: 0 20px;
   }
   .character-page-heading h1 {
-    font-size: 22px;
+    font-size: 16px;
   }
   .backup-tools {
     flex-wrap: wrap;
@@ -1164,16 +1064,8 @@ dialog::backdrop {
     padding: 20px 9px 0;
   }
   .brand {
-    font-size: 24px;
+    font-size: 18px;
     padding-left: 7px;
-  }
-  .project {
-    font-size: 10px;
-    gap: 7px;
-    padding: 10px 8px;
-  }
-  .project small {
-    font-size: 8px;
   }
   .section-label {
     margin-left: 7px;
@@ -1244,10 +1136,10 @@ dialog::backdrop {
     padding: 7px;
   }
   .writing-view {
-    padding: 0 19px;
+    padding: 0 14px;
   }
   #title {
-    font-size: 24px;
+    font-size: 18px;
   }
   #subtitle {
     font-size: 11px;
@@ -1264,27 +1156,18 @@ dialog::backdrop {
     font-size: 9px;
     padding: 6px;
   }
-  .dropzone p {
-    font-size: 10px;
-  }
-  .dropzone small {
-    font-size: 9px;
-  }
   .character-view {
     padding: 0 18px;
   }
   .character-page-heading h1 {
-    font-size: 20px;
-    line-height: 1.6;
-  }
-  .character-page-heading p {
-    font-size: 10px;
+    font-size: 15px;
+    line-height: 1.4;
   }
   .character-layout {
     display: block;
   }
   .character-profile {
-    margin-top: 21px;
+    margin-top: 16px;
   }
   .profile-grid {
     grid-template-columns: 1fr;
@@ -1295,18 +1178,8 @@ dialog::backdrop {
   .sheet-bottom {
     gap: 8px;
   }
-  .sheet-bottom > span {
-    max-width: 100px;
-    line-height: 1.8;
-  }
   .character-empty {
-    padding: 28px 14px;
-  }
-  .character-empty h2 {
-    font-size: 15px;
-  }
-  .character-empty p {
-    font-size: 11px;
+    padding: 8px 0;
   }
   footer {
     padding: 0 10px;
@@ -1317,10 +1190,6 @@ dialog::backdrop {
   dialog {
     padding: 18px;
   }
-  .eyebrow {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-  }
 }
 
 .recovery-button {
@@ -1330,8 +1199,7 @@ dialog::backdrop {
   text-align: left;
 }
 
-.character-page-heading h1,
-.character-empty h2 {
+.character-page-heading h1 {
   word-break: keep-all;
 }
 
@@ -1368,9 +1236,6 @@ dialog::backdrop {
   .dialog-heading h2 {
     font-size: 19px;
   }
-  .dialog-description {
-    margin: 10px 0 8px;
-  }
 }
 
 /* Personal workspace title and opt-in caret tracking. */
@@ -1399,6 +1264,7 @@ button.brand {
   top: 8px;
   margin: 0;
   opacity: 0.65;
+  color: var(--muted);
 }
 .brand-edit svg {
   width: 13px;
