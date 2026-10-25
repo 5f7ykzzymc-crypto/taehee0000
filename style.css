@@ -1,4 +1,7 @@
 :root {
+  --font-system:
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI",
+    "Malgun Gothic", "Noto Sans KR", sans-serif;
   --library-width: 220px;
   --bg: #fffefa;
   --side: #f3f3ee;
@@ -24,12 +27,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font:
-    13px -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Noto Sans KR",
-    sans-serif;
+  font: 13px var(--font-system);
 }
 button,
 input,
@@ -486,7 +484,7 @@ input {
 }
 #title,
 #characterName {
-  font-family: ui-serif, "Noto Serif KR", Batang, serif;
+  font-family: var(--font-system);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.5px;
@@ -580,10 +578,11 @@ textarea {
   resize: vertical;
   border: 0;
   background: none;
-  font-family: ui-serif, "Noto Serif KR", Batang, serif;
+  font-family: var(--font-system);
   font-size: 16px;
-  line-height: 2.2;
-  letter-spacing: -0.2px;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: normal;
   display: block;
 }
 #editor {
@@ -840,13 +839,8 @@ footer button {
   background: var(--input);
   padding: 9px 11px;
   color: var(--text);
-  font:
-    12px/1.9 -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font: 12px/1.7 var(--font-system);
   letter-spacing: 0;
-  line-height: 1.7;
 }
 .profile-grid input {
   height: 36px;
