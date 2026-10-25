@@ -19,6 +19,34 @@
         <strong id="workspaceName">여백</strong
         ><span class="brand-edit" data-icon="pen"></span>
       </button>
+      <div class="work-switcher">
+        <div class="work-heading">
+          <label for="workSelect">작품</label>
+          <button
+            id="addWork"
+            class="icon-button"
+            aria-label="작품 추가"
+            title="새 작품 추가"
+          >
+            <span data-icon="plus"></span>
+          </button>
+        </div>
+        <div class="work-controls">
+          <div class="work-picker">
+            <select id="workSelect" aria-label="작품 선택">
+              <option>내 첫 작품</option>
+            </select>
+          </div>
+          <button
+            id="editWork"
+            class="icon-button"
+            aria-label="작품 이름 변경"
+            title="작품 이름 변경"
+          >
+            <span data-icon="pen"></span>
+          </button>
+        </div>
+      </div>
       <div class="section-label">작업 공간</div>
       <nav class="categories" aria-label="카테고리">
         <button id="writingNav" class="nav active" aria-current="page">
@@ -372,6 +400,41 @@
           <button type="button" id="cancelWorkspace" class="subtle-button">
             취소</button
           ><button type="submit" class="primary-button">저장</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog
+      id="workDialog"
+      class="workspace-dialog work-dialog"
+      aria-labelledby="workDialogTitle"
+    >
+      <form id="workForm">
+        <div class="dialog-heading">
+          <h2 id="workDialogTitle">새 작품</h2>
+          <button
+            type="button"
+            id="closeWork"
+            class="icon-button"
+            aria-label="작품 이름 창 닫기"
+          >
+            <span data-icon="close"></span>
+          </button>
+        </div>
+        <label for="workNameInput">작품 이름 <small>최대 50자</small></label>
+        <input
+          id="workNameInput"
+          required
+          maxlength="100"
+          autocomplete="off"
+          placeholder="작품 이름"
+        />
+        <div class="workspace-dialog-actions">
+          <button type="button" id="cancelWork" class="subtle-button">
+            취소
+          </button>
+          <button type="submit" id="saveWork" class="primary-button">
+            만들기
+          </button>
         </div>
       </form>
     </dialog>

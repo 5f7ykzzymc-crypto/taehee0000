@@ -78,10 +78,53 @@ async function upload(page, kind = "character", name = "인물.png") {
     { kind, before },
   );
 }
-async function backup(page) {
+async function fullBackup(page) {
   const pending = page.waitForEvent("download");
   await page.locator("#backup").click();
   return JSON.parse(await fs.readFile(await (await pending).path(), "utf8"));
+}
+async function backup(page) {
+  const data = await fullBackup(page);
+  if (data.version !== 3) return data;
+  const active = data.works.find((work) => work.id === data.activeWorkId);
+  assert.ok(active, "the full backup includes its active work");
+  return { ...active.project, workspaceName: data.workspaceName };
+}
+async function createWork(page, name) {
+  await page.locator("#addWork").click();
+  await page.locator("#workNameInput").fill(name);
+  await page.locator("#saveWork").click();
+  await page.waitForFunction(
+    (name) =>
+      document.querySelector("#workSelect option:checked")?.textContent ===
+      name,
+    name,
+  );
+  return page.locator("#workSelect").inputValue();
+}
+async function pasteSceneImage(context, page) {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: base,
+  });
+  await page.evaluate(async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 12;
+    canvas.height = 12;
+    canvas.getContext("2d").fillRect(0, 0, 12, 12);
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/png"),
+    );
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  });
+  const before = await page.locator("#sceneImages .image-card").count();
+  await page.locator("#editor").focus();
+  await page.keyboard.press("Control+V");
+  await page.waitForFunction(
+    (before) =>
+      document.querySelectorAll("#sceneImages .image-card").length ===
+      before + 1,
+    before,
+  );
 }
 async function restore(page, data, confirm = true) {
   await page.locator("#restoreFile").setInputFiles({
@@ -91,6 +134,252 @@ async function restore(page, data, confirm = true) {
   });
   if (confirm) await page.locator("#confirmAction").click();
 }
+test("existing v2 data migrates into one work with every scene, character, image and workspace name intact", async () => {
+  const { context, page } = await fresh();
+  await page.locator("#title").fill("보존할 작품의 첫 화");
+  await page.locator("#editor").fill("이전 버전에서 작성한 원고");
+  await makeCharacter(page, "기존 인물");
+  await page.locator("#characterNotes").fill("이전 인물의 메모");
+  await upload(page);
+  const legacy = await backup(page);
+  legacy.workspaceName = "원래 작업실";
+  await page.evaluate(
+    (data) => localStorage.setItem("yeobaek-project-v2", JSON.stringify(data)),
+    legacy,
+  );
+  await page.reload();
+  assert.equal(await page.locator("#workSelect option").count(), 1);
+  assert.equal(
+    await page.locator("#workspaceName").textContent(),
+    "원래 작업실",
+  );
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "이전 버전에서 작성한 원고",
+  );
+  await page.locator("#charactersNav").click();
+  assert.equal(await page.locator("#characterName").inputValue(), "기존 인물");
+  assert.equal(
+    await page.locator("#characterNotes").inputValue(),
+    "이전 인물의 메모",
+  );
+  assert.equal(await page.locator("#characterImages .image-card").count(), 1);
+  await page.locator("#characterNotes").fill("새 버전에서 이어 쓴 메모");
+  const migrated = await fullBackup(page);
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.works.length, 1);
+  assert.deepEqual(migrated.works[0].project.episodes, legacy.episodes);
+  assert.deepEqual(
+    migrated.works[0].project.characters[0].images,
+    legacy.characters[0].images,
+  );
+  await page.reload();
+  await page.locator("#charactersNav").click();
+  assert.equal(
+    await page.locator("#characterNotes").inputValue(),
+    "새 버전에서 이어 쓴 메모",
+  );
+  await context.close();
+});
+test("works open independent blank pages and preserve their own episodes, characters and pasted images", async () => {
+  const { context, page } = await fresh();
+  const firstId = await page.locator("#workSelect").inputValue();
+  await page.locator("#editWork").click();
+  await page.locator("#workNameInput").fill("봄의 이야기");
+  await page.locator("#saveWork").click();
+  assert.equal(
+    await page.locator("#workSelect option:checked").textContent(),
+    "봄의 이야기",
+  );
+  await page.locator("#title").fill("봄의 첫 화");
+  await page.locator("#editor").fill("봄 작품에만 남는 원고");
+  await pasteSceneImage(context, page);
+  await makeCharacter(page, "봄의 주인공");
+  await page.locator("#characterNotes").fill("봄의 인물 설정");
+  await upload(page);
+  await page.locator("#writingNav").click();
+  await page.locator("#toggleEpisodeDetails").click();
+  await page.locator("#subtitle").fill("봄의 소개");
+  await page.locator("#theme").click();
+  await page.locator("#fontSize").click();
+  await page.locator("#toggleOutline").click();
+  const secondId = await createWork(page, "겨울의 이야기");
+  assert.notEqual(secondId, firstId);
+  assert.equal(await page.locator("#editor").inputValue(), "");
+  assert.equal(await page.locator("#title").inputValue(), "첫 번째 에피소드");
+  assert.equal(await page.locator("#items .item").count(), 1);
+  assert.equal(await page.locator("#scenes .scene").count(), 1);
+  assert.equal(await page.locator("#characterTotal").textContent(), "0");
+  assert.equal(await page.locator("#sceneImages").isVisible(), false);
+  assert.equal(await page.locator("#episodeDetails").isVisible(), false);
+  assert.equal(
+    await page.locator("#theme").getAttribute("aria-pressed"),
+    "true",
+  );
+  assert.equal(await page.locator("#fontSize").textContent(), "가 18");
+  assert.equal(
+    await page.locator("#toggleOutline").getAttribute("aria-expanded"),
+    "false",
+  );
+  await page.locator("#charactersNav").click();
+  assert.equal(await page.locator("#characterEmpty").isVisible(), true);
+  await makeCharacter(page, "겨울의 주인공");
+  await page.locator("#characterNotes").fill("겨울의 인물 설정");
+  assert.equal(await page.locator("#characterImages .image-card").count(), 0);
+  await page.locator("#writingNav").click();
+  await page.locator("#title").fill("겨울의 첫 화");
+  await page.locator("#editor").fill("겨울 작품에만 남는 원고");
+  await page.locator("#workSelect").selectOption(firstId);
+  assert.equal(await page.locator("#title").inputValue(), "봄의 첫 화");
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "봄 작품에만 남는 원고",
+  );
+  assert.equal(await page.locator("#sceneImages .image-card").count(), 1);
+  await page.locator("#charactersNav").click();
+  assert.equal(
+    await page.locator("#characterName").inputValue(),
+    "봄의 주인공",
+  );
+  assert.equal(
+    await page.locator("#characterNotes").inputValue(),
+    "봄의 인물 설정",
+  );
+  assert.equal(await page.locator("#characterImages .image-card").count(), 1);
+  await page.locator("#workSelect").selectOption(secondId);
+  assert.equal(await page.locator("#writingView").isVisible(), true);
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "겨울 작품에만 남는 원고",
+  );
+  assert.equal(await page.locator("#sceneImages").isVisible(), false);
+  await page.reload();
+  assert.equal(await page.locator("#workSelect").inputValue(), secondId);
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "겨울 작품에만 남는 원고",
+  );
+  await page.locator("#charactersNav").click();
+  assert.equal(
+    await page.locator("#characterName").inputValue(),
+    "겨울의 주인공",
+  );
+  const all = await fullBackup(page);
+  assert.equal(all.version, 3);
+  assert.equal(all.works.length, 2);
+  assert.equal(all.activeWorkId, secondId);
+  const next = await fresh();
+  await restore(next.page, all);
+  assert.equal(await next.page.locator("#workSelect").inputValue(), secondId);
+  assert.equal(
+    await next.page.locator("#editor").inputValue(),
+    "겨울 작품에만 남는 원고",
+  );
+  await next.page.locator("#workSelect").selectOption(firstId);
+  assert.equal(
+    await next.page.locator("#editor").inputValue(),
+    "봄 작품에만 남는 원고",
+  );
+  assert.equal(await next.page.locator("#sceneImages .image-card").count(), 1);
+  await next.page.locator("#charactersNav").click();
+  assert.equal(
+    await next.page.locator("#characterImages .image-card").count(),
+    1,
+  );
+  await context.close();
+  await next.context.close();
+});
+test("work names validate blanks, duplicates and length while cancel preserves the current work", async () => {
+  const { context, page } = await fresh();
+  const originalId = await page.locator("#workSelect").inputValue();
+  const originalName = await page
+    .locator("#workSelect option:checked")
+    .textContent();
+  await page.locator("#addWork").click();
+  for (const name of ["   ", originalName, "가".repeat(51)]) {
+    await page.locator("#workNameInput").fill(name);
+    await page.locator("#saveWork").click();
+    assert.equal(await page.locator("#workDialog").isVisible(), true);
+    assert.equal(await page.locator("#workSelect option").count(), 1);
+    assert.equal(
+      await page
+        .locator("#workNameInput")
+        .evaluate((input) => input.validity.valid),
+      false,
+    );
+  }
+  await page.locator("#cancelWork").click();
+  assert.equal(await page.locator("#workSelect").inputValue(), originalId);
+  await page.locator("#editWork").click();
+  await page.locator("#workNameInput").fill("취소한 작품 이름");
+  await page.keyboard.press("Escape");
+  assert.equal(
+    await page.locator("#workSelect option:checked").textContent(),
+    originalName,
+  );
+  await context.close();
+});
+test("legacy backup replaces only the current work and malformed multiwork backup changes nothing", async () => {
+  const { context, page } = await fresh();
+  const firstId = await page.locator("#workSelect").inputValue();
+  await page.locator("#editor").fill("첫 작품은 계속 보존");
+  const legacy = await backup(page);
+  legacy.episodes[0].scenes[0].text = "이전 백업에서 복원한 둘째 작품";
+  const secondId = await createWork(page, "둘째 작품");
+  await page.locator("#editor").fill("교체 전 둘째 원고");
+  await restore(page, legacy);
+  assert.equal(await page.locator("#workSelect option").count(), 2);
+  assert.equal(await page.locator("#workSelect").inputValue(), secondId);
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "이전 백업에서 복원한 둘째 작품",
+  );
+  await page.locator("#workSelect").selectOption(firstId);
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "첫 작품은 계속 보존",
+  );
+  const all = await fullBackup(page);
+  const invalid = structuredClone(all);
+  invalid.works[1].project.episodes = [];
+  await restore(page, invalid, false);
+  assert.equal(await page.locator("#confirmDialog").isVisible(), false);
+  assert.deepEqual(await fullBackup(page), all);
+  await context.close();
+});
+test("failed work switching and creation retain unsaved text in the current work and full backup", async () => {
+  const { context, page } = await fresh();
+  const firstId = await page.locator("#workSelect").inputValue();
+  const secondId = await createWork(page, "다른 작품");
+  await page.locator("#workSelect").selectOption(firstId);
+  await page.evaluate(() => {
+    Storage.prototype.setItem = function () {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    };
+  });
+  const text = "저장이 실패해도 버리면 안 되는 현재 작품의 원고";
+  await page.locator("#editor").fill(text);
+  await page.locator("#workSelect").selectOption(secondId);
+  assert.equal(await page.locator("#workSelect").inputValue(), firstId);
+  assert.equal(await page.locator("#editor").inputValue(), text);
+  await page.locator("#addWork").click();
+  await page.locator("#workNameInput").fill("저장 실패한 새 작품");
+  await page.locator("#saveWork").click();
+  assert.equal(await page.locator("#workSelect option").count(), 2);
+  assert.equal(await page.locator("#workSelect").inputValue(), firstId);
+  assert.equal(await page.locator("#editor").inputValue(), text);
+  if (await page.locator("#workDialog").isVisible())
+    await page.locator("#cancelWork").click();
+  const all = await fullBackup(page);
+  assert.equal(all.works.length, 2);
+  assert.equal(
+    all.works.find((work) => work.id === firstId).project.episodes[0].scenes[0]
+      .text,
+    text,
+  );
+  assert.equal(all.activeWorkId, firstId);
+  await context.close();
+});
 test("existing v1 draft migrates without losing scenes, and edits persist after reload", async () => {
   const { context, page } = await fresh();
   const legacy = [
@@ -354,8 +643,8 @@ test("unreadable prior storage is preserved before subsequent edits", async () =
   assert.equal(
     await page.evaluate(
       () =>
-        JSON.parse(localStorage.getItem("yeobaek-project-v2")).episodes[0]
-          .scenes[0].text,
+        JSON.parse(localStorage.getItem("yeobaek-project-v2")).works[0].project
+          .episodes[0].scenes[0].text,
     ),
     "새 원고",
   );

@@ -185,12 +185,76 @@ function normalizeProject(data) {
     }),
   };
 }
-let project = {
+function libraryForProject(data) {
+  const migrated = normalizeProject(data);
+  const id = uid();
+  return {
+    version: 3,
+    workspaceName: migrated.workspaceName,
+    activeWorkId: id,
+    works: [
+      {
+        id,
+        name:
+          [...migrated.episodes[0].title.trim()].slice(0, 50).join("") ||
+          "내 첫 작품",
+        project: migrated,
+      },
+    ],
+  };
+}
+function normalizeLibrary(data) {
+  if (data?.version === 2) return libraryForProject(data);
+  if (
+    !data ||
+    data.version !== 3 ||
+    !Array.isArray(data.works) ||
+    !data.works.length ||
+    data.works.length > 100
+  )
+    throw new Error("여백 백업 파일을 선택해 주세요.");
+  const ids = new Set();
+  const works = data.works.map((work) => {
+    if (
+      !work ||
+      typeof work.id !== "string" ||
+      !work.id.trim() ||
+      work.id.length > 200 ||
+      ids.has(work.id) ||
+      typeof work.name !== "string" ||
+      !work.name.trim() ||
+      [...work.name.trim()].length > 50
+    )
+      throw new Error("작품 목록 형식이 올바르지 않습니다.");
+    ids.add(work.id);
+    return {
+      id: work.id,
+      name: work.name.trim(),
+      project: normalizeProject(work.project),
+    };
+  });
+  if (!ids.has(data.activeWorkId))
+    throw new Error("선택된 작품 정보가 올바르지 않습니다.");
+  return {
+    version: 3,
+    workspaceName:
+      typeof data.workspaceName === "string" && data.workspaceName.trim()
+        ? [...data.workspaceName.trim()].slice(0, 30).join("")
+        : "여백",
+    activeWorkId: data.activeWorkId,
+    works,
+  };
+}
+let library = libraryForProject({
   version: 2,
   workspaceName: "여백",
-  episodes: normalizeEpisodes(initial),
+  episodes: initial,
   characters: [],
-};
+});
+function currentWork() {
+  return library.works.find((work) => work.id === library.activeWorkId);
+}
+let project = currentWork().project;
 let loadProblem = "",
   unreadableRaw = null;
 const RECOVERY_KEY = "yeobaek-recovery-v2";
@@ -198,14 +262,20 @@ try {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      project = normalizeProject(JSON.parse(saved));
+      library = normalizeLibrary(JSON.parse(saved));
+      project = currentWork().project;
     } catch (error) {
       unreadableRaw = saved;
       throw error;
     }
   } else {
     const legacy = localStorage.getItem("yeobaek-v1");
-    if (legacy) project.episodes = normalizeEpisodes(JSON.parse(legacy));
+    if (legacy) {
+      project.episodes = normalizeEpisodes(JSON.parse(legacy));
+      currentWork().name =
+        [...project.episodes[0].title.trim()].slice(0, 50).join("") ||
+        "내 첫 작품";
+    }
   }
 } catch (error) {
   loadProblem =
@@ -260,7 +330,8 @@ function persist(notify = true) {
         throw new Error("복구 자료를 먼저 내려받아 주세요.");
       localStorage.setItem(RECOVERY_KEY, unreadableRaw);
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    currentWork().project = project;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
     unreadableRaw = null;
     hasStorageError = false;
     $("saved").textContent = "✓ 저장됨";
@@ -427,6 +498,7 @@ function renderImages(kind) {
   }
 }
 function render() {
+  renderWorks();
   renderWorkspaceName();
   updateTypewriterButton();
   const isWriting = view === "writing";
@@ -485,6 +557,142 @@ function switchView(next) {
   render();
   $("documentScroll").scrollTop = 0;
 }
+function renderWorks() {
+  $("workSelect").replaceChildren(
+    ...library.works.map((work) => {
+      const option = element("option", "", work.name);
+      option.value = work.id;
+      return option;
+    }),
+  );
+  $("workSelect").value = library.activeWorkId;
+  $("workSelect").title = currentWork().name;
+  $("editWork").title = currentWork().name + " · 작품 이름 변경";
+}
+function openWorkPage() {
+  $("editor").blur();
+  ep = 0;
+  scene = 0;
+  characterIndex = 0;
+  $("episodeDetails").hidden = true;
+  $("toggleEpisodeDetails").setAttribute("aria-expanded", "false");
+  document
+    .querySelectorAll(".format")
+    .forEach((button, index) =>
+      button.classList.toggle("selected", index === 0),
+    );
+  switchView("writing");
+}
+function canChangeWork() {
+  if (imageBusy) {
+    toast("이미지를 처리하고 있습니다. 완료된 뒤 작품을 전환해 주세요.");
+    return false;
+  }
+  return persist();
+}
+$("workSelect").onchange = () => {
+  const next = library.works.find((work) => work.id === $("workSelect").value);
+  if (!next || next.id === library.activeWorkId) return;
+  if (!canChangeWork()) {
+    renderWorks();
+    return;
+  }
+  const previousId = library.activeWorkId,
+    previousProject = project;
+  library.activeWorkId = next.id;
+  project = next.project;
+  if (!persist()) {
+    library.activeWorkId = previousId;
+    project = previousProject;
+    renderWorks();
+    return;
+  }
+  generation++;
+  openWorkPage();
+};
+let editingWorkId = null;
+function openWorkDialog(edit) {
+  if (!edit && library.works.length >= 100)
+    return toast("작품은 최대 100개까지 만들 수 있습니다.");
+  editingWorkId = edit ? library.activeWorkId : null;
+  $("workDialogTitle").textContent = edit ? "작품 이름 변경" : "새 작품";
+  $("saveWork").textContent = edit ? "저장" : "만들기";
+  $("workNameInput").value = edit ? currentWork().name : "";
+  $("workNameInput").setCustomValidity("");
+  $("workDialog").showModal();
+  $("workNameInput").focus();
+  $("workNameInput").select();
+}
+$("addWork").onclick = () => openWorkDialog(false);
+$("editWork").onclick = () => openWorkDialog(true);
+$("closeWork").onclick = $("cancelWork").onclick = () =>
+  $("workDialog").close();
+$("workNameInput").oninput = () => $("workNameInput").setCustomValidity("");
+$("workForm").onsubmit = (event) => {
+  event.preventDefault();
+  const input = $("workNameInput"),
+    name = input.value.trim();
+  if (
+    !name ||
+    [...name].length > 50 ||
+    library.works.some(
+      (work) => work.id !== editingWorkId && work.name === name,
+    )
+  ) {
+    input.setCustomValidity(
+      !name
+        ? "작품 이름을 입력해 주세요."
+        : [...name].length > 50
+          ? "작품 이름은 50자까지 입력할 수 있습니다."
+          : "같은 이름의 작품이 있습니다.",
+    );
+    input.reportValidity();
+    return;
+  }
+  if (editingWorkId !== null) {
+    const work = library.works.find((entry) => entry.id === editingWorkId);
+    if (!work) return $("workDialog").close();
+    const previousName = work.name;
+    work.name = name;
+    if (!persist()) {
+      work.name = previousName;
+      return;
+    }
+    renderWorks();
+  } else {
+    if (library.works.length >= 100 || !canChangeWork()) return;
+    const previousId = library.activeWorkId,
+      previousProject = project;
+    const work = {
+      id: uid(),
+      name,
+      project: normalizeProject({
+        version: 2,
+        workspaceName: library.workspaceName,
+        episodes: [
+          {
+            title: "첫 번째 에피소드",
+            subtitle: "",
+            scenes: [{ title: "첫 번째 장면", text: "", images: [] }],
+          },
+        ],
+        characters: [],
+      }),
+    };
+    library.works.push(work);
+    library.activeWorkId = work.id;
+    project = work.project;
+    if (!persist()) {
+      library.works.pop();
+      library.activeWorkId = previousId;
+      project = previousProject;
+      return;
+    }
+    generation++;
+    openWorkPage();
+  }
+  $("workDialog").close();
+};
 $("writingNav").onclick = () => switchView("writing");
 $("charactersNav").onclick = () => switchView("characters");
 $("editor").oninput = () => {
@@ -594,12 +802,12 @@ $("deleteCharacter").onclick = async () => {
   toast("캐릭터 시트를 삭제했습니다.");
 };
 function renderWorkspaceName() {
-  $("workspaceName").textContent = project.workspaceName;
-  $("renameWorkspace").title = project.workspaceName + " · 이름 변경";
-  document.title = project.workspaceName + " — 스토리 스튜디오";
+  $("workspaceName").textContent = library.workspaceName;
+  $("renameWorkspace").title = library.workspaceName + " · 이름 변경";
+  document.title = library.workspaceName + " — 스토리 스튜디오";
 }
 $("renameWorkspace").onclick = () => {
-  $("workspaceNameInput").value = project.workspaceName;
+  $("workspaceNameInput").value = library.workspaceName;
   $("workspaceNameInput").setCustomValidity("");
   $("workspaceDialog").showModal();
   $("workspaceNameInput").focus();
@@ -622,7 +830,7 @@ $("workspaceForm").onsubmit = (event) => {
     input.reportValidity();
     return;
   }
-  project.workspaceName = name;
+  library.workspaceName = name;
   persist();
   renderWorkspaceName();
   $("workspaceDialog").close();
@@ -891,45 +1099,78 @@ try {
     unreadableRaw === null && !localStorage.getItem(RECOVERY_KEY);
 } catch {}
 $("backup").onclick = () => {
+  currentWork().project = project;
   download(
-    JSON.stringify(project, null, 2),
+    JSON.stringify(library, null, 2),
     "application/json",
-    project.workspaceName +
+    library.workspaceName +
       "-전체백업-" +
       new Date().toISOString().slice(0, 10) +
       ".json",
   );
-  toast("원고와 캐릭터, 이미지를 함께 백업했습니다.");
+  toast("모든 작품의 원고와 캐릭터, 이미지를 함께 백업했습니다.");
 };
 $("restore").onclick = () => $("restoreFile").click();
 $("restoreFile").onchange = async (event) => {
   const file = event.target.files[0];
   event.target.value = "";
   if (!file) return;
+  const requestedGeneration = generation,
+    requestedWorkId = library.activeWorkId;
   try {
-    if (file.size > 15000000)
-      throw new Error("백업 파일은 15MB 이하로 선택해 주세요.");
-    const next = normalizeProject(JSON.parse(await file.text()));
+    if (file.size > 50000000)
+      throw new Error("백업 파일은 50MB 이하로 선택해 주세요.");
+    const data = JSON.parse(await file.text());
+    const isLibrary = data?.version === 3;
+    const next = isLibrary ? normalizeLibrary(data) : normalizeProject(data);
+    if (
+      generation !== requestedGeneration ||
+      library.activeWorkId !== requestedWorkId
+    )
+      return toast(
+        "작품이 변경되어 백업 불러오기를 취소했습니다. 다시 선택해 주세요.",
+      );
     if (
       !(await confirmAction(
         "백업 불러오기",
-        `에피소드 ${next.episodes.length}개와 캐릭터 ${next.characters.length}명을 불러옵니다.\n현재 작업을 이 백업으로 교체합니다. 현재 자료는 먼저 전체 백업으로 보관해 주세요.`,
+        isLibrary
+          ? `작품 ${next.works.length}개를 불러옵니다.\n현재 모든 작품을 이 백업으로 교체합니다. 현재 자료는 먼저 전체 백업으로 보관해 주세요.`
+          : `에피소드 ${next.episodes.length}개와 캐릭터 ${next.characters.length}명을 현재 작품에 불러옵니다.\n현재 작품만 이 백업으로 교체하며, 다른 작품은 유지됩니다. 현재 자료는 먼저 전체 백업으로 보관해 주세요.`,
         "불러오기",
       ))
     )
       return;
-    const previous = project;
-    project = next;
+    if (
+      generation !== requestedGeneration ||
+      library.activeWorkId !== requestedWorkId
+    )
+      return toast(
+        "작품이 변경되어 백업 불러오기를 취소했습니다. 다시 선택해 주세요.",
+      );
+    const previousLibrary = library,
+      previousProject = project;
+    library = isLibrary
+      ? next
+      : {
+          ...library,
+          workspaceName: next.workspaceName,
+          works: library.works.map((work) =>
+            work.id === requestedWorkId ? { ...work, project: next } : work,
+          ),
+        };
+    project = currentWork().project;
     if (!persist()) {
-      project = previous;
+      library = previousLibrary;
+      project = previousProject;
       return;
     }
     generation++;
-    ep = 0;
-    scene = 0;
-    characterIndex = 0;
-    switchView("writing");
-    toast("백업에서 원고와 캐릭터 시트를 복원했습니다.");
+    openWorkPage();
+    toast(
+      isLibrary
+        ? "백업에서 모든 작품을 복원했습니다."
+        : "현재 작품의 원고와 캐릭터 시트를 복원했습니다.",
+    );
   } catch (error) {
     toast(
       error instanceof SyntaxError

@@ -33,6 +33,7 @@ body {
 }
 button,
 input,
+select,
 textarea {
   font: inherit;
   color: inherit;
@@ -54,6 +55,7 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible,
 label.upload-button:focus-within {
@@ -62,6 +64,7 @@ label.upload-button:focus-within {
 }
 button,
 input,
+select,
 textarea {
   transition:
     background 0.15s,
@@ -102,6 +105,7 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
 }
 .brand {
   font-size: 18px;
@@ -109,6 +113,70 @@ button {
   letter-spacing: -0.6px;
   padding-left: 10px;
   margin-bottom: 16px;
+}
+.work-switcher {
+  margin-bottom: 17px;
+  flex-shrink: 0;
+}
+.work-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 3px 5px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.work-heading .icon-button,
+.work-controls > .icon-button {
+  width: 25px;
+  height: 25px;
+  padding: 5px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.work-heading svg,
+.work-controls > .icon-button svg {
+  width: 14px;
+  height: 14px;
+}
+.work-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.work-picker {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.work-picker::after {
+  content: "";
+  position: absolute;
+  right: 11px;
+  top: 13px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+#workSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 26px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 .section-label {
   font-size: 11px;
@@ -118,6 +186,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 .section-label > span {
   font: 8px sans-serif;
@@ -126,6 +195,7 @@ button {
 .categories {
   display: grid;
   gap: 3px;
+  flex-shrink: 0;
 }
 .nav {
   width: 100%;
@@ -1328,7 +1398,8 @@ button.brand {
 .workspace-dialog label small {
   font-size: 10px;
 }
-#workspaceNameInput {
+#workspaceNameInput,
+#workNameInput {
   padding: 11px 12px;
   background: var(--input);
   border: 1px solid var(--line);
@@ -1348,6 +1419,25 @@ button.brand {
   }
   .brand .brand-edit {
     right: 2px;
+  }
+  .work-heading {
+    margin-left: 7px;
+  }
+  .work-controls {
+    gap: 2px;
+  }
+  .work-controls > .icon-button {
+    width: 22px;
+    height: 26px;
+    padding: 4px;
+  }
+  #workSelect {
+    padding-left: 7px;
+    padding-right: 22px;
+    font-size: 11px;
+  }
+  .work-picker::after {
+    right: 9px;
   }
 }
 
