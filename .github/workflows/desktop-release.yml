@@ -1,0 +1,85 @@
+name: Mac application release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "배포할 기존 태그 (예: v0.5.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  mac-release:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Validate the release tag
+        run: |
+          node <<'NODE'
+          const expected = `v${require('./package.json').version}`;
+          if (process.env.RELEASE_TAG !== expected) {
+            throw new Error(`Release tag must match package.json: ${expected}`);
+          }
+          NODE
+          git merge-base --is-ancestor HEAD origin/main
+
+      - run: npm ci
+
+      - name: Test the native Mac application
+        run: npm run test:desktop
+
+      - name: Build Apple Silicon and Intel applications
+        run: |
+          npm run build
+          npx electron-builder --config electron-builder.yml --mac --arm64 --x64 --publish never
+
+      - name: Publish downloadable installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > release-notes.md <<'NOTES'
+          맥에서 브라우저 없이 실행하는 **작업시작** 앱입니다.
+
+          - **Apple 칩(M 시리즈):** `work-start-mac-arm64.dmg`
+          - **Intel 맥:** `work-start-mac-x64.dmg`
+          - ZIP은 같은 앱이 담긴 압축 파일입니다.
+
+          DMG를 열고 **작업시작.app**을 **응용 프로그램** 폴더로 드래그한 뒤 실행하세요.
+
+          기존 브라우저에서 작성한 원고는 **전체 백업**으로 저장한 뒤 앱의 **백업 불러오기**로 옮기세요. 브라우저와 앱의 저장 공간은 분리되어 있습니다.
+
+          이번 배포는 Apple 개발자 인증·공증을 거치지 않았습니다. macOS에서 실행을 차단하면, 앱을 한 번 실행한 다음 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**에서 허용할 수 있습니다.
+          NOTES
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/*.dmg dist/*.zip --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/*.dmg dist/*.zip \
+              --verify-tag \
+              --title "작업시작 $RELEASE_TAG" \
+              --notes-file release-notes.md
+          fi

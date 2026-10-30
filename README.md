@@ -1,14 +1,30 @@
-# 여백 · 웹툰 스토리 스튜디오
+# 작업시작 · 웹툰 스토리 스튜디오
 
-윈도우와 맥에서 사용할 수 있는 조용한 글쓰기 공간입니다. 별도 설치나 회원가입 없이 브라우저에서 실행됩니다.
+맥에서 브라우저 없이 실행하는 조용한 글쓰기 앱입니다. 인터넷 연결이나 회원가입 없이 사용할 수 있습니다.
 
-## 처음 실행하기
+## 맥 앱 설치하기
 
-1. [앱 ZIP 다운로드](https://github.com/5f7ykzzymc-crypto/taehee0000/archive/refs/heads/main.zip)를 누릅니다. 저장소가 비공개라면 GitHub에 먼저 로그인하세요.
-2. ZIP 파일의 압축을 풉니다.
-3. 폴더 안의 **작업시작.html**을 더블 클릭합니다. Chrome·Edge·Safari 등 최신 브라우저를 사용하세요.
+1. 자신의 맥에 맞는 설치 파일을 받습니다. **Apple 메뉴 → 이 Mac에 관하여**에서 칩을 확인할 수 있습니다.
+   - **M1·M2·M3·M4 등 Apple 칩:** [Apple Silicon용 DMG](https://github.com/5f7ykzzymc-crypto/taehee0000/releases/latest/download/work-start-mac-arm64.dmg)
+   - **Intel 프로세서:** [Intel용 DMG](https://github.com/5f7ykzzymc-crypto/taehee0000/releases/latest/download/work-start-mac-x64.dmg)
+2. DMG 파일을 열고 **작업시작.app**을 **응용 프로그램** 폴더로 드래그합니다.
+3. 응용 프로그램 폴더에서 **작업시작**을 실행합니다. Dock에 고정해서 사용할 수도 있습니다.
 
-폴더 안의 파일을 함께 보관해야 화면과 기능이 정상적으로 작동합니다. 앱 실행에 별도 프로그램이나 패키지 설치는 필요하지 않습니다.
+초기 배포는 Apple 개발자 인증·공증을 거치지 않았습니다. macOS에서 실행을 차단하면 앱을 한 번 실행한 뒤 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**로 허용하세요. 별도 개발 도구 설치는 필요하지 않습니다.
+
+DMG 대신 압축 파일이 필요하면 [Apple Silicon용 앱 ZIP](https://github.com/5f7ykzzymc-crypto/taehee0000/releases/latest/download/work-start-mac-arm64.zip) 또는 [Intel용 앱 ZIP](https://github.com/5f7ykzzymc-crypto/taehee0000/releases/latest/download/work-start-mac-x64.zip)을 사용하세요. 소스 코드 ZIP과 달리 **작업시작.app**이 들어 있습니다.
+
+## 기존 브라우저 원고를 앱으로 옮기기
+
+1. 이전에 쓰던 브라우저 버전을 열고 왼쪽 아래 **전체 백업**으로 JSON 파일을 저장합니다.
+2. 새 **작업시작.app**에서 **백업 불러오기**를 눌러 그 JSON 파일을 선택합니다.
+3. 확인 창에서 불러오면 모든 작품의 원고·캐릭터·이미지가 함께 옮겨집니다.
+
+브라우저와 앱의 저장 공간은 서로 다릅니다. 앱은 맥의 `~/Library/Application Support/YeobaekStoryStudio/`에 자동 저장합니다. 앱을 다른 폴더로 옮기거나 새 버전으로 교체해도 같은 저장 공간을 사용합니다. 중요한 원고는 **전체 백업** 파일로도 보관하세요.
+
+## 기존 브라우저 버전 사용하기
+
+윈도우나 이전 방식으로 사용하려면 [소스 ZIP](https://github.com/5f7ykzzymc-crypto/taehee0000/archive/refs/heads/main.zip)의 압축을 풀고 **작업시작.html**을 여세요. `app.js`, `typewriter.js`, `style.css`도 같은 폴더에 있어야 합니다. 맥 앱 설치에는 이 과정이 필요 없습니다.
 
 ## 글쓰기와 캐릭터 시트
 
@@ -42,13 +58,13 @@
 
 이미지는 캐릭터·장면마다 최대 6장입니다. 저장 공간을 아끼기 위해 긴 변을 최대 1,200픽셀로 줄여 저장합니다. GIF는 움직이지 않는 이미지로 저장됩니다. 중요한 원본은 따로 보관하세요.
 
-## 실행 파일 이름이 바뀐 경우
+## 기존 브라우저 버전의 실행 파일 이름이 바뀐 경우
 
 새 실행 파일은 **작업시작.html**입니다. 기존 **index.html**도 같은 앱을 여는 호환 파일로 남겨 두었습니다. 저장 위치가 파일 이름에 따라 구분되는 브라우저가 있으므로, 업데이트 전 기존 앱에서 **전체 백업**을 받고 작업시작.html을 연 뒤 **백업 불러오기**로 옮겨 주세요. 기존 원고가 바로 보이지 않으면 기존 index.html을 열어 백업할 수 있습니다.
 
 ## 저장·백업·다른 컴퓨터로 옮기기
 
-원고와 이미지는 **현재 브라우저에 자동 저장**됩니다. 윈도우와 맥 사이에 자동 동기화되지는 않습니다. 이전 버전의 `yeobaek-v1` 원고는 같은 브라우저 저장 공간에서 불러옵니다.
+원고와 이미지는 **현재 앱에 자동 저장**됩니다. 기존 브라우저 버전에서는 해당 브라우저에 저장합니다. 기기 사이에 자동 동기화되지는 않습니다. 이전 버전의 `yeobaek-v1` 원고는 기존 브라우저에서 불러온 뒤 전체 백업으로 앱에 옮길 수 있습니다.
 
 - **전체 백업**으로 JSON 파일을 저장하면 모든 작품의 이름·에피소드·캐릭터·이미지를 함께 보관할 수 있습니다.
 - 다른 컴퓨터에서 앱을 열고 **백업 불러오기**로 그 JSON 파일을 선택하면 작업을 옮길 수 있습니다. 복원 전에는 현재 작업도 백업하세요.
@@ -59,7 +75,17 @@
 
 ## 개발 검증
 
-앱 사용에는 패키지 설치가 필요 없습니다. 실행 파일과 `app.js`, `typewriter.js`, `style.css`를 같은 폴더에 보관하세요.
+배포된 맥 앱 사용에는 패키지 설치가 필요 없습니다. 개발하려면 Node.js 22.12 이상에서 다음을 실행하세요.
+
+```sh
+npm ci
+npm run desktop:dev
+npm run test:desktop
+```
+
+맥에서 `npm run desktop:mac`을 실행하면 `dist/`에 Apple Silicon·Intel용 DMG와 앱 ZIP이 생성됩니다. `v`로 시작하는 버전 태그를 올리면 GitHub Actions의 macOS 환경에서 앱 검사·패키징 후 GitHub Release에 설치 파일을 게시합니다. 이 초기 빌드는 ad-hoc 서명이며 Apple Developer ID 서명·공증은 포함하지 않습니다.
+
+맥 앱은 Electron의 격리된 렌더러와 로컬 리소스만 사용합니다. 원고 화면에 Node.js 권한을 노출하지 않고, 외부 페이지 이동과 새 창을 차단합니다. 백업·내보내기는 맥의 파일 저장 창을 사용합니다.
 
 브라우저 통합 검증은 `npm ci`로 개발용 Playwright를 설치하고 Chromium을 준비한 환경에서 실행합니다.
 

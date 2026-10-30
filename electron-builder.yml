@@ -1,0 +1,32 @@
+appId: com.yeobaek.story-studio
+productName: 작업시작
+asar: true
+directories:
+  output: dist
+files:
+  - desktop/main.cjs
+  - index.html
+  - 작업시작.html
+  - app.js
+  - typewriter.js
+  - style.css
+  - package.json
+mac:
+  category: public.app-category.productivity
+  icon: desktop/icon.icns
+  artifactName: work-start-mac-${arch}.${ext}
+  identity: "-"
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+dmg:
+  title: 작업시작
+  backgroundColor: "#fffefa"
+publish: null
