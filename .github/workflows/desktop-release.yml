@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
 
       - name: Validate the release tag
@@ -50,12 +50,28 @@ jobs:
       - run: npm ci
 
       - name: Test the native Mac application
-        run: npm run test:desktop
+        run: |
+          set +e
+          npm run test:desktop 2>&1 | tee "$RUNNER_TEMP/desktop-smoke.log"
+          smoke_status=${PIPESTATUS[0]}
+          {
+            printf '### Native Mac app verification\n\n```text\n'
+            tail -n 120 "$RUNNER_TEMP/desktop-smoke.log"
+            printf '\n```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$smoke_status"
 
       - name: Build Apple Silicon and Intel applications
         run: |
-          npm run build
-          npx electron-builder --config electron-builder.yml --mac --arm64 --x64 --publish never
+          set +e
+          npm run desktop:mac 2>&1 | tee "$RUNNER_TEMP/desktop-build.log"
+          build_status=${PIPESTATUS[0]}
+          {
+            printf '### Mac installers\n\n```text\n'
+            tail -n 120 "$RUNNER_TEMP/desktop-build.log"
+            printf '\n```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$build_status"
 
       - name: Publish downloadable installers
         env:
