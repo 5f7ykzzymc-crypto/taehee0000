@@ -23,6 +23,31 @@ async function savedJSON(file) {
   throw new Error("The desktop backup did not finish saving.");
 }
 
+async function armMacFullscreen(desktop, eventName) {
+  if (process.platform !== "darwin") return;
+  await desktop.evaluate(({ BrowserWindow }, name) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window.__yeobaekTestFullscreen = new Promise((resolve) => {
+      window.once(name, () => resolve(true));
+    });
+  }, eventName);
+}
+
+async function settleMacFullscreen(desktop, expected) {
+  if (process.platform !== "darwin") return;
+  const fullscreen = await desktop.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    await window.__yeobaekTestFullscreen;
+    delete window.__yeobaekTestFullscreen;
+    return window.isFullScreen();
+  });
+  assert.equal(
+    fullscreen,
+    expected,
+    "native macOS fullscreen transition settled",
+  );
+}
+
 test(
   "desktop runs offline, isolates Node, keeps drafts after relaunch, and saves full backups",
   { timeout: 60000 },
@@ -122,16 +147,25 @@ test(
           document.querySelectorAll("#sceneImages .image-card").length === 1,
       );
 
+      await armMacFullscreen(desktop, "enter-full-screen");
       await page.locator("#focus").click();
       await page.waitForFunction(
         () => document.fullscreenElement === document.documentElement,
       );
+      await settleMacFullscreen(desktop, true);
       assert.equal(
         await page.locator("#focus").getAttribute("aria-pressed"),
         "true",
       );
+      await armMacFullscreen(desktop, "leave-full-screen");
       await page.locator("#focus").click();
+      assert.equal(
+        await page.locator("#focus").getAttribute("aria-pressed"),
+        "false",
+        "the fullscreen exit click reaches the writing application",
+      );
       await page.waitForFunction(() => !document.fullscreenElement);
+      await settleMacFullscreen(desktop, false);
 
       await desktop.evaluate(({ session }, destination) => {
         session.defaultSession.once("will-download", (_event, item) =>
