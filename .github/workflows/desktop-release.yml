@@ -2,6 +2,8 @@ name: Mac application release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -28,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -38,6 +40,7 @@ jobs:
           cache: npm
 
       - name: Validate the release tag
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         run: |
           node <<'NODE'
           const expected = `v${require('./package.json').version}`;
@@ -59,9 +62,19 @@ jobs:
             tail -n 120 "$RUNNER_TEMP/desktop-smoke.log"
             printf '\n```\n'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$smoke_status" -ne 0 ]; then
+            python3 <<'PY'
+          import os
+          from pathlib import Path
+          message = '\n'.join((Path(os.environ['RUNNER_TEMP']) / 'desktop-smoke.log').read_text().splitlines()[-100:])
+          message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print('::error title=Native Mac app diagnostic::' + message)
+          PY
+          fi
           exit "$smoke_status"
 
       - name: Build Apple Silicon and Intel applications
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         run: |
           set +e
           npm run desktop:mac 2>&1 | tee "$RUNNER_TEMP/desktop-build.log"
@@ -71,9 +84,19 @@ jobs:
             tail -n 120 "$RUNNER_TEMP/desktop-build.log"
             printf '\n```\n'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$build_status" -ne 0 ]; then
+            python3 <<'PY'
+          import os
+          from pathlib import Path
+          message = '\n'.join((Path(os.environ['RUNNER_TEMP']) / 'desktop-build.log').read_text().splitlines()[-100:])
+          message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print('::error title=Mac installer diagnostic::' + message)
+          PY
+          fi
           exit "$build_status"
 
       - name: Publish downloadable installers
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
